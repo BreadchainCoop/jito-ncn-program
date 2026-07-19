@@ -4,8 +4,8 @@ use jito_restaking_core::{config::Config, ncn_vault_ticket::NcnVaultTicket};
 use ncn_program_core::{
     g1_point::{G1CompressedPoint, G1Point},
     g2_point::{G2CompressedPoint, G2Point},
-    schemes::Sha256Normalized,
-    utils::create_signer_bitmap,
+    schemes::{MessageDigest, Sha256Normalized},
+    utils::{create_signer_bitmap, pop_message_digest},
 };
 use solana_program::{clock::Clock, native_token::sol_to_lamports, pubkey::Pubkey};
 use solana_program_test::{processor, BanksClientError, ProgramTest, ProgramTestContext};
@@ -487,7 +487,7 @@ impl TestBuilder {
                 apk2_pubkeys.push(operator.bn128_g2_pubkey);
                 let signature = operator
                     .bn128_privkey
-                    .sign::<Sha256Normalized, &[u8; 32]>(&message)
+                    .sign::<Sha256Normalized>(&MessageDigest(message))
                     .unwrap();
                 signitures.push(signature);
             }
@@ -580,7 +580,11 @@ impl TestBuilder {
 
             let signature = operator_root
                 .bn128_privkey
-                .sign::<Sha256Normalized, &[u8; 32]>(&g1_compressed.0)
+                .sign::<Sha256Normalized>(&pop_message_digest(
+                    &test_ncn.ncn_root.ncn_pubkey,
+                    &operator_root.operator_pubkey,
+                    &g1_compressed.0,
+                ))
                 .unwrap();
 
             ncn_program_client
@@ -668,7 +672,7 @@ impl TestBuilder {
             apk2_pubkeys.push(operator.bn128_g2_pubkey);
             let signature = operator
                 .bn128_privkey
-                .sign::<Sha256Normalized, &[u8; 32]>(&vote_message)
+                .sign::<Sha256Normalized>(&MessageDigest(vote_message))
                 .unwrap();
             signatures.push(signature);
         }

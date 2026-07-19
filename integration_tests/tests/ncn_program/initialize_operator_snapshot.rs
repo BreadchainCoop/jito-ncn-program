@@ -7,6 +7,7 @@ mod tests {
         g2_point::G2CompressedPoint,
         schemes::Sha256Normalized,
         snapshot::Snapshot,
+        utils::pop_message_digest,
     };
 
     use crate::fixtures::{
@@ -67,7 +68,11 @@ mod tests {
 
         let signature = operator_root
             .bn128_privkey
-            .sign::<Sha256Normalized, &[u8; 32]>(&g1_compressed.0)
+            .sign::<Sha256Normalized>(&pop_message_digest(
+                &test_ncn.ncn_root.ncn_pubkey,
+                &operator_root.operator_pubkey,
+                &g1_compressed.0,
+            ))
             .unwrap();
 
         ncn_program_client

@@ -7,6 +7,7 @@ mod tests {
         g2_point::G2CompressedPoint,
         privkey::PrivKey,
         schemes::Sha256Normalized,
+        utils::pop_message_digest,
     };
 
     use solana_sdk::signature::Keypair;
@@ -52,7 +53,11 @@ mod tests {
         let new_g2_compressed = G2CompressedPoint::try_from(&new_private_key).unwrap();
 
         let new_signature = new_private_key
-            .sign::<Sha256Normalized, &[u8; 32]>(&new_g1_compressed.0)
+            .sign::<Sha256Normalized>(&pop_message_digest(
+                &ncn_root.ncn_pubkey,
+                &operator_root.operator_pubkey,
+                &new_g1_compressed.0,
+            ))
             .unwrap();
 
         // Update operator BLS keys
@@ -157,7 +162,11 @@ mod tests {
         let new_g2_compressed = G2CompressedPoint::try_from(&new_private_key).unwrap();
 
         let new_signature = new_private_key
-            .sign::<Sha256Normalized, &[u8; 32]>(&new_g1_compressed.0)
+            .sign::<Sha256Normalized>(&pop_message_digest(
+                &ncn_root.ncn_pubkey,
+                &operator_root.operator_pubkey,
+                &new_g1_compressed.0,
+            ))
             .unwrap();
 
         // Try to update unregistered operator should fail
@@ -217,7 +226,11 @@ mod tests {
         let initial_g2_compressed = G2CompressedPoint::try_from(&initial_private_key).unwrap();
 
         let initial_signature = initial_private_key
-            .sign::<Sha256Normalized, &[u8; 32]>(&initial_g1_compressed.0)
+            .sign::<Sha256Normalized>(&pop_message_digest(
+                &ncn_root.ncn_pubkey,
+                &operator_root.operator_pubkey,
+                &initial_g1_compressed.0,
+            ))
             .unwrap();
 
         ncn_program_client
@@ -238,7 +251,11 @@ mod tests {
         let new_g2_compressed = G2CompressedPoint::try_from(&new_private_key2).unwrap(); // Different key!
 
         let new_signature = new_private_key1
-            .sign::<Sha256Normalized, &[u8; 32]>(&new_g1_compressed.0)
+            .sign::<Sha256Normalized>(&pop_message_digest(
+                &ncn_root.ncn_pubkey,
+                &operator_root.operator_pubkey,
+                &new_g1_compressed.0,
+            ))
             .unwrap();
 
         // Try to update with mismatched keys should fail
@@ -304,7 +321,11 @@ mod tests {
         let initial_g2_compressed = G2CompressedPoint::try_from(&initial_private_key).unwrap();
 
         let initial_signature = initial_private_key
-            .sign::<Sha256Normalized, &[u8; 32]>(&initial_g1_compressed.0)
+            .sign::<Sha256Normalized>(&pop_message_digest(
+                &ncn_root.ncn_pubkey,
+                &operator_root.operator_pubkey,
+                &initial_g1_compressed.0,
+            ))
             .unwrap();
 
         ncn_program_client
@@ -326,7 +347,11 @@ mod tests {
 
         // Sign with wrong private key
         let wrong_signature = wrong_private_key
-            .sign::<Sha256Normalized, &[u8; 32]>(&new_g1_compressed.0)
+            .sign::<Sha256Normalized>(&pop_message_digest(
+                &ncn_root.ncn_pubkey,
+                &operator_root.operator_pubkey,
+                &new_g1_compressed.0,
+            ))
             .unwrap();
 
         // Try to update with invalid signature should fail
@@ -392,7 +417,11 @@ mod tests {
         let initial_g2_compressed = G2CompressedPoint::try_from(&initial_private_key).unwrap();
 
         let initial_signature = initial_private_key
-            .sign::<Sha256Normalized, &[u8; 32]>(&initial_g1_compressed.0)
+            .sign::<Sha256Normalized>(&pop_message_digest(
+                &ncn_root.ncn_pubkey,
+                &operator_root.operator_pubkey,
+                &initial_g1_compressed.0,
+            ))
             .unwrap();
 
         ncn_program_client
@@ -412,7 +441,11 @@ mod tests {
         let new_g2_compressed = G2CompressedPoint::try_from(&new_private_key).unwrap();
 
         let new_signature = new_private_key
-            .sign::<Sha256Normalized, &[u8; 32]>(&new_g1_compressed.0)
+            .sign::<Sha256Normalized>(&pop_message_digest(
+                &ncn_root.ncn_pubkey,
+                &operator_root.operator_pubkey,
+                &new_g1_compressed.0,
+            ))
             .unwrap();
 
         // Create unauthorized signer (not the operator admin)
@@ -476,7 +509,11 @@ mod tests {
         let initial_g2_compressed = G2CompressedPoint::try_from(&initial_private_key).unwrap();
 
         let initial_signature = initial_private_key
-            .sign::<Sha256Normalized, &[u8; 32]>(&initial_g1_compressed.0)
+            .sign::<Sha256Normalized>(&pop_message_digest(
+                &ncn_root.ncn_pubkey,
+                &operator_root.operator_pubkey,
+                &initial_g1_compressed.0,
+            ))
             .unwrap();
 
         ncn_program_client
@@ -496,7 +533,11 @@ mod tests {
         let update1_g2_compressed = G2CompressedPoint::try_from(&update1_private_key).unwrap();
 
         let update1_signature = update1_private_key
-            .sign::<Sha256Normalized, &[u8; 32]>(&update1_g1_compressed.0)
+            .sign::<Sha256Normalized>(&pop_message_digest(
+                &ncn_root.ncn_pubkey,
+                &operator_root.operator_pubkey,
+                &update1_g1_compressed.0,
+            ))
             .unwrap();
 
         ncn_program_client
@@ -524,7 +565,11 @@ mod tests {
         let update2_g2_compressed = G2CompressedPoint::try_from(&update2_private_key).unwrap();
 
         let update2_signature = update2_private_key
-            .sign::<Sha256Normalized, &[u8; 32]>(&update2_g1_compressed.0)
+            .sign::<Sha256Normalized>(&pop_message_digest(
+                &ncn_root.ncn_pubkey,
+                &operator_root.operator_pubkey,
+                &update2_g1_compressed.0,
+            ))
             .unwrap();
 
         ncn_program_client
@@ -593,7 +638,11 @@ mod tests {
         let g2_compressed = G2CompressedPoint::try_from(&private_key).unwrap();
 
         let signature = private_key
-            .sign::<Sha256Normalized, &[u8; 32]>(&g1_compressed.0)
+            .sign::<Sha256Normalized>(&pop_message_digest(
+                &ncn_root.ncn_pubkey,
+                &operator_root.operator_pubkey,
+                &g1_compressed.0,
+            ))
             .unwrap();
 
         // Register operator

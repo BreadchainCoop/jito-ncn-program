@@ -5,8 +5,8 @@ mod tests {
         error::NCNProgramError,
         g1_point::{G1CompressedPoint, G1Point},
         g2_point::{G2CompressedPoint, G2Point},
-        schemes::Sha256Normalized,
-        utils::create_signer_bitmap,
+        schemes::{MessageDigest, Sha256Normalized},
+        utils::{create_signer_bitmap, pop_message_digest},
     };
 
     use solana_sdk::{msg, signature::Keypair, signer::Signer};
@@ -209,7 +209,11 @@ mod tests {
 
                 let signature = operator_root
                     .bn128_privkey
-                    .sign::<Sha256Normalized, &[u8; 32]>(&g1_compressed.0)
+                    .sign::<Sha256Normalized>(&pop_message_digest(
+                        &ncn_pubkey,
+                        &operator_root.operator_pubkey,
+                        &g1_compressed.0,
+                    ))
                     .unwrap();
 
                 ncn_program_client
@@ -264,7 +268,7 @@ mod tests {
                         sunny_apk2_pubkeys.push(operator.bn128_g2_pubkey);
                         let signature = operator
                             .bn128_privkey
-                            .sign::<Sha256Normalized, &[u8; 32]>(&sunny_vote_message)
+                            .sign::<Sha256Normalized>(&MessageDigest(sunny_vote_message))
                             .unwrap();
                         sunny_signatures.push(signature);
                     } else {
@@ -325,7 +329,7 @@ mod tests {
                         apk2_pubkeys.push(operator.bn128_g2_pubkey);
                         let signature = operator
                             .bn128_privkey
-                            .sign::<Sha256Normalized, &[u8; 32]>(&cloudy_vote_message)
+                            .sign::<Sha256Normalized>(&MessageDigest(cloudy_vote_message))
                             .unwrap();
                         signatures.push(signature);
                     } else {

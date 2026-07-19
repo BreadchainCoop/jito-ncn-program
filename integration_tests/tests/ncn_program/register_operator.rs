@@ -6,6 +6,7 @@ mod tests {
         g2_point::G2CompressedPoint,
         privkey::PrivKey,
         schemes::Sha256Normalized,
+        utils::pop_message_digest,
     };
 
     use crate::fixtures::ncn_program_client::assert_ncn_program_error;
@@ -51,7 +52,11 @@ mod tests {
 
         let signature = operator_root
             .bn128_privkey
-            .sign::<Sha256Normalized, &[u8; 32]>(&g1_compressed.0)
+            .sign::<Sha256Normalized>(&pop_message_digest(
+                &ncn_root.ncn_pubkey,
+                &operator_root.operator_pubkey,
+                &g1_compressed.0,
+            ))
             .unwrap();
 
         // Test operator registration
@@ -109,7 +114,11 @@ mod tests {
 
         let signature = operator_root
             .bn128_privkey
-            .sign::<Sha256Normalized, &[u8; 32]>(&g1_compressed.0)
+            .sign::<Sha256Normalized>(&pop_message_digest(
+                &ncn_root.ncn_pubkey,
+                &operator_root.operator_pubkey,
+                &g1_compressed.0,
+            ))
             .unwrap();
 
         // Test operator registration with mismatched keys should fail
@@ -159,7 +168,11 @@ mod tests {
 
         let signature = operator_root
             .bn128_privkey
-            .sign::<Sha256Normalized, &[u8; 32]>(&g1_compressed.0)
+            .sign::<Sha256Normalized>(&pop_message_digest(
+                &ncn_root.ncn_pubkey,
+                &operator_root.operator_pubkey,
+                &g1_compressed.0,
+            ))
             .unwrap();
 
         // Try to register operator without operator registry should fail
@@ -221,7 +234,11 @@ mod tests {
         let g2_compressed = G2CompressedPoint::try_from(&operator_root.bn128_privkey).unwrap();
         let signature = operator_root
             .bn128_privkey
-            .sign::<Sha256Normalized, &[u8; 32]>(&g1_compressed.0)
+            .sign::<Sha256Normalized>(&pop_message_digest(
+                &ncn_root.ncn_pubkey,
+                &operator_root.operator_pubkey,
+                &g1_compressed.0,
+            ))
             .unwrap();
 
         // Try to register operator (should fail)
@@ -285,7 +302,11 @@ mod tests {
         let g2_compressed = G2CompressedPoint::try_from(&operator_root.bn128_privkey).unwrap();
         let signature = operator_root
             .bn128_privkey
-            .sign::<Sha256Normalized, &[u8; 32]>(&g1_compressed.0)
+            .sign::<Sha256Normalized>(&pop_message_digest(
+                &ncn_root.ncn_pubkey,
+                &operator_root.operator_pubkey,
+                &g1_compressed.0,
+            ))
             .unwrap();
 
         // Try to register operator (should fail)

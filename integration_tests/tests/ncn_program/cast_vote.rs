@@ -5,7 +5,7 @@ mod tests {
         error::NCNProgramError,
         g1_point::{G1CompressedPoint, G1Point},
         g2_point::{G2CompressedPoint, G2Point},
-        schemes::Sha256Normalized,
+        schemes::{MessageDigest, Sha256Normalized},
         utils::create_signer_bitmap,
     };
     use rand::Rng;
@@ -74,7 +74,7 @@ mod tests {
                 apk2_pubkeys.push(operator.bn128_g2_pubkey);
                 let signature = operator
                     .bn128_privkey
-                    .sign::<Sha256Normalized, &[u8; 32]>(&message)
+                    .sign::<Sha256Normalized>(&MessageDigest(message))
                     .unwrap();
                 signitures.push(signature);
             }
@@ -349,7 +349,7 @@ mod tests {
                 apk2_pubkeys.push(operator.bn128_g2_pubkey);
                 let signature = operator
                     .bn128_privkey
-                    .sign::<Sha256Normalized, &[u8; 32]>(&message)
+                    .sign::<Sha256Normalized>(&MessageDigest(message))
                     .unwrap();
                 signitures.push(signature);
             }
@@ -413,7 +413,7 @@ mod tests {
                 apk2_pubkeys.push(operator.bn128_g2_pubkey);
                 let signature = operator
                     .bn128_privkey
-                    .sign::<Sha256Normalized, &[u8; 32]>(&message)
+                    .sign::<Sha256Normalized>(&MessageDigest(message))
                     .unwrap();
                 signitures.push(signature);
             }
@@ -526,7 +526,7 @@ mod tests {
 
         let operator_key = test_ncn.operators[0].bn128_privkey;
         let signature = operator_key
-            .sign::<Sha256Normalized, &[u8; 32]>(&message)
+            .sign::<Sha256Normalized>(&MessageDigest(message))
             .unwrap();
         let agg_sig = G1CompressedPoint::try_from(signature).unwrap().0;
         let apk2 = G2CompressedPoint::try_from(&operator_key).unwrap().0;
@@ -571,7 +571,7 @@ mod tests {
                 apk2_pubkeys.push(operator.bn128_g2_pubkey);
                 let signature = operator
                     .bn128_privkey
-                    .sign::<Sha256Normalized, &[u8; 32]>(&wrong_message)
+                    .sign::<Sha256Normalized>(&MessageDigest(wrong_message))
                     .unwrap();
                 signitures.push(signature);
             }
@@ -638,7 +638,7 @@ mod tests {
                 apk2_pubkeys.push(operator.bn128_g2_pubkey);
                 let signature = operator
                     .bn128_privkey
-                    .sign::<Sha256Normalized, &[u8; 32]>(&message)
+                    .sign::<Sha256Normalized>(&MessageDigest(message))
                     .unwrap();
                 signatures.push(signature);
             }
@@ -687,7 +687,7 @@ mod tests {
                     apk2_pubkeys.push(operator.bn128_g2_pubkey);
                     let signature = operator
                         .bn128_privkey
-                        .sign::<Sha256Normalized, &[u8; 32]>(&message)
+                        .sign::<Sha256Normalized>(&MessageDigest(message))
                         .unwrap();
                     signatures.push(signature);
                 }
@@ -760,7 +760,7 @@ mod tests {
                 apk2_pubkeys.push(operator.bn128_g2_pubkey);
                 let signature = operator
                     .bn128_privkey
-                    .sign::<Sha256Normalized, &[u8; 32]>(&message)
+                    .sign::<Sha256Normalized>(&MessageDigest(message))
                     .unwrap();
                 signatures.push(signature);
             }
@@ -798,7 +798,7 @@ mod tests {
                 // Sign the OLD message (same as first vote)
                 let signature = operator
                     .bn128_privkey
-                    .sign::<Sha256Normalized, &[u8; 32]>(&old_message)
+                    .sign::<Sha256Normalized>(&MessageDigest(old_message))
                     .unwrap();
                 signatures.push(signature);
             }
@@ -878,7 +878,7 @@ mod tests {
                     apk2_pubkeys.push(operator.bn128_g2_pubkey);
                     let signature = operator
                         .bn128_privkey
-                        .sign::<Sha256Normalized, &[u8; 32]>(&message)
+                        .sign::<Sha256Normalized>(&MessageDigest(message))
                         .unwrap();
                     signatures.push(signature);
                 }
@@ -957,7 +957,7 @@ mod tests {
             // Sign with the WRONG message
             let signature = operator
                 .bn128_privkey
-                .sign::<Sha256Normalized, &[u8; 32]>(&wrong_message)
+                .sign::<Sha256Normalized>(&MessageDigest(wrong_message))
                 .unwrap();
             signatures.push(signature);
         }

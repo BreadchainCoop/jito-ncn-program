@@ -6,7 +6,7 @@ mod fuzz_tests {
         constants::MAX_OPERATORS,
         g1_point::{G1CompressedPoint, G1Point},
         g2_point::{G2CompressedPoint, G2Point},
-        schemes::Sha256Normalized,
+        schemes::{MessageDigest, Sha256Normalized},
         utils::create_signer_bitmap,
     };
     use solana_sdk::{native_token::sol_to_lamports, signature::Keypair, signer::Signer};
@@ -223,7 +223,7 @@ mod fuzz_tests {
                 apk2_pubkeys.push(operator_root.bn128_g2_pubkey);
                 let signature = operator_root
                     .bn128_privkey
-                    .sign::<Sha256Normalized, &[u8; 32]>(&vote_message)
+                    .sign::<Sha256Normalized>(&MessageDigest(vote_message))
                     .unwrap();
                 signatures.push(signature);
             }

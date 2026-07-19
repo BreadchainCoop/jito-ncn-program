@@ -3,6 +3,7 @@ mod tests {
     use crate::fixtures::{test_builder::TestBuilder, TestResult};
     use ncn_program_core::{
         g1_point::G1CompressedPoint, g2_point::G2CompressedPoint, schemes::Sha256Normalized,
+        utils::pop_message_digest,
     };
 
     #[tokio::test]
@@ -45,7 +46,11 @@ mod tests {
 
         let signature = operator_root
             .bn128_privkey
-            .sign::<Sha256Normalized, &[u8; 32]>(&g1_compressed.0)
+            .sign::<Sha256Normalized>(&pop_message_digest(
+                &ncn_root.ncn_pubkey,
+                &operator_root.operator_pubkey,
+                &g1_compressed.0,
+            ))
             .unwrap();
 
         // Register the operator first
@@ -131,7 +136,11 @@ mod tests {
 
         let signature = operator_root
             .bn128_privkey
-            .sign::<Sha256Normalized, &[u8; 32]>(&g1_compressed.0)
+            .sign::<Sha256Normalized>(&pop_message_digest(
+                &ncn_root.ncn_pubkey,
+                &operator_root.operator_pubkey,
+                &g1_compressed.0,
+            ))
             .unwrap();
 
         // Register the operator first
