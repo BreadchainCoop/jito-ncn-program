@@ -27,7 +27,7 @@ import {
 import { NCN_PROGRAM_PROGRAM_ADDRESS } from '../programs';
 import { getAccountMetaFactory, type ResolvedAccount } from '../shared';
 
-export const REALLOC_SNAPSHOT_DISCRIMINATOR = 8;
+export const REALLOC_SNAPSHOT_DISCRIMINATOR = 7;
 
 export function getReallocSnapshotDiscriminatorBytes() {
   return getU8Encoder().encode(REALLOC_SNAPSHOT_DISCRIMINATOR);

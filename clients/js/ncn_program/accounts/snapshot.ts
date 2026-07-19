@@ -61,6 +61,7 @@ export type Snapshot = {
   operatorSnapshots: Array<OperatorSnapshot>;
   minimumStake: StakeWeights;
   lastSnapshotSlot: bigint;
+  generation: bigint;
 };
 
 export type SnapshotArgs = {
@@ -74,6 +75,7 @@ export type SnapshotArgs = {
   operatorSnapshots: Array<OperatorSnapshotArgs>;
   minimumStake: StakeWeightsArgs;
   lastSnapshotSlot: number | bigint;
+  generation: number | bigint;
 };
 
 export function getSnapshotEncoder(): Encoder<SnapshotArgs> {
@@ -91,6 +93,7 @@ export function getSnapshotEncoder(): Encoder<SnapshotArgs> {
     ],
     ['minimumStake', getStakeWeightsEncoder()],
     ['lastSnapshotSlot', getU64Encoder()],
+    ['generation', getU64Encoder()],
   ]);
 }
 
@@ -109,6 +112,7 @@ export function getSnapshotDecoder(): Decoder<Snapshot> {
     ],
     ['minimumStake', getStakeWeightsDecoder()],
     ['lastSnapshotSlot', getU64Decoder()],
+    ['generation', getU64Decoder()],
   ]);
 }
 

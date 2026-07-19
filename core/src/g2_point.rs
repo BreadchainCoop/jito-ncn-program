@@ -17,11 +17,12 @@ use solana_bn254::{
 };
 use solana_program::msg;
 
+#[cfg(not(target_os = "solana"))]
+use crate::privkey::PrivKey;
 use crate::{
     constants::{BN128_ADDITION_SUCESS_RESULT, G1_GENERATOR, G2_MINUS_ONE},
     error::NCNProgramError,
     g1_point::{G1CompressedPoint, G1Point},
-    privkey::PrivKey,
     schemes::{BLSSignature, HashToCurve, MessageDigest, Sha256Normalized},
     utils::{compute_certificate_gamma, compute_pop_gamma},
 };

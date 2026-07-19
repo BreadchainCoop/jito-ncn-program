@@ -358,6 +358,12 @@ pub enum NcnProgramError {
     /// 8806 - Invalid consensus threshold bps
     #[error("Invalid consensus threshold bps")]
     InvalidConsensusThresholdBps = 0x2266,
+    /// 8807 - Snapshot generation mismatch
+    #[error("Snapshot generation mismatch")]
+    SnapshotGenerationMismatch = 0x2267,
+    /// 8808 - Insufficient signed stake bps for consensus threshold
+    #[error("Insufficient signed stake bps for consensus threshold")]
+    InsufficientStakeBps = 0x2268,
 }
 
 impl solana_program::program_error::PrintProgramError for NcnProgramError {

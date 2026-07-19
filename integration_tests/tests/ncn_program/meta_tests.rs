@@ -31,7 +31,7 @@ mod tests {
             .add_vault_operator_delegation_snapshots_to_test_ncn(&test_ncn)
             .await?;
         fixture
-            .cast_vote_all_operators_who_can_vote(&test_ncn)
+            .verify_certificate_all_operators_who_can_sign(&test_ncn)
             .await?;
 
         Ok(())
@@ -51,7 +51,7 @@ mod tests {
             .await?;
 
         fixture
-            .cast_vote_all_operators_who_can_vote(&test_ncn)
+            .verify_certificate_all_operators_who_can_sign(&test_ncn)
             .await?;
 
         Ok(())
@@ -70,7 +70,7 @@ mod tests {
             .await?;
 
         fixture
-            .cast_vote_all_operators_who_can_vote(&test_ncn)
+            .verify_certificate_all_operators_who_can_sign(&test_ncn)
             .await?;
 
         Ok(())

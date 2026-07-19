@@ -203,5 +203,9 @@ pub fn process_snapshot_vault_operator_delegation(
         &cloned_operator_snapshot,
     );
 
+    // The snapshot-level freshness marker tracks the latest crank; the
+    // VerifyCertificate slot-freshness window measures against it.
+    snapshot_account.set_last_snapshot_slot(current_slot);
+
     Ok(())
 }

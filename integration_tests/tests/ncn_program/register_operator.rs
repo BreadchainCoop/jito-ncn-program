@@ -2,11 +2,8 @@
 mod tests {
     use crate::fixtures::{test_builder::TestBuilder, TestResult};
     use ncn_program_core::{
-        g1_point::G1CompressedPoint,
-        g2_point::G2CompressedPoint,
-        privkey::PrivKey,
-        schemes::Sha256Normalized,
-        utils::pop_message_digest,
+        g1_point::G1CompressedPoint, g2_point::G2CompressedPoint, privkey::PrivKey,
+        schemes::Sha256Normalized, utils::pop_message_digest,
     };
 
     use crate::fixtures::ncn_program_client::assert_ncn_program_error;

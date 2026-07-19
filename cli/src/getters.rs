@@ -23,7 +23,6 @@ use ncn_program_core::{
     ncn_operator_account::NCNOperatorAccount,
     snapshot::{OperatorSnapshot, Snapshot},
     vault_registry::VaultRegistry,
-    vote_counter::VoteCounter,
 };
 use solana_account_decoder::{UiAccountEncoding, UiDataSliceConfig};
 use solana_client::{
@@ -639,64 +638,6 @@ pub async fn get_all_tickets(handler: &CliHandler) -> Result<Vec<NcnTickets>> {
     }
 
     Ok(tickets)
-}
-
-pub async fn get_vote_counter(handler: &CliHandler) -> Result<VoteCounter> {
-    let (address, _, _) =
-        VoteCounter::find_program_address(&handler.ncn_program_id, handler.ncn()?);
-
-    let account = get_account(handler, &address).await?;
-
-    if account.is_none() {
-        return Err(anyhow::anyhow!("Vote counter account not found"));
-    }
-
-    let account = account.unwrap();
-    let vote_counter = VoteCounter::try_from_slice_unchecked(&account.data)?;
-
-    Ok(*vote_counter)
-}
-
-pub async fn get_or_create_vote_counter(handler: &CliHandler) -> Result<VoteCounter> {
-    let (address, _, _) =
-        VoteCounter::find_program_address(&handler.ncn_program_id, handler.ncn()?);
-
-    // First, try to get the account.
-    match get_account(handler, &address).await? {
-        Some(account) => {
-            info!("VoteCounter account found at {}", address);
-            let vote_counter = VoteCounter::try_from_slice_unchecked(&account.data)?;
-            Ok(*vote_counter)
-        }
-        None => {
-            info!(
-                "VoteCounter account not found at {}. \
-                A creation step via CliHandler method is needed before re-fetching.",
-                address
-            );
-
-            // Import the create_vote_counter function from instructions module
-            use crate::instructions::create_vote_counter;
-            create_vote_counter(handler).await?;
-
-            // Attempt to fetch the account again after the conceptual creation call.
-            match get_account(handler, &address).await? {
-                Some(account_after_attempt) => {
-                    info!(
-                        "VoteCounter account successfully fetched from {} after conceptual creation attempt.",
-                        address
-                    );
-                    let vote_counter = VoteCounter::try_from_slice_unchecked(&account_after_attempt.data)?;
-                    Ok(*vote_counter)
-                }
-                None => Err(anyhow::anyhow!(
-                    "Failed to get VoteCounter account at {} even after conceptual creation attempt. \
-                    Ensure the CliHandler method for creation is implemented and was successful, or initialize the account manually.",
-                    address
-                )),
-            }
-        }
-    }
 }
 
 pub struct NcnTickets {

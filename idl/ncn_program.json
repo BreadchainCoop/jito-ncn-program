@@ -344,41 +344,6 @@
       }
     },
     {
-      "name": "InitializeVoteCounter",
-      "accounts": [
-        {
-          "name": "config",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "voteCounter",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "ncn",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "accountPayer",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": [],
-      "discriminant": {
-        "type": "u8",
-        "value": 6
-      }
-    },
-    {
       "name": "InitializeSnapshot",
       "accounts": [
         {
@@ -405,7 +370,7 @@
       "args": [],
       "discriminant": {
         "type": "u8",
-        "value": 7
+        "value": 6
       }
     },
     {
@@ -440,7 +405,7 @@
       "args": [],
       "discriminant": {
         "type": "u8",
-        "value": 8
+        "value": 7
       }
     },
     {
@@ -500,14 +465,14 @@
       "args": [],
       "discriminant": {
         "type": "u8",
-        "value": 9
+        "value": 8
       }
     },
     {
-      "name": "CastVote",
+      "name": "VerifyCertificate",
       "accounts": [
         {
-          "name": "config",
+          "name": "ncnConfig",
           "isMut": false,
           "isSigner": false
         },
@@ -525,16 +490,11 @@
           "name": "restakingConfig",
           "isMut": false,
           "isSigner": false
-        },
-        {
-          "name": "voteCounter",
-          "isMut": true,
-          "isSigner": false
         }
       ],
       "args": [
         {
-          "name": "aggregatedSignature",
+          "name": "digest",
           "type": {
             "array": [
               "u8",
@@ -552,13 +512,26 @@
           }
         },
         {
+          "name": "aggregatedSignature",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
           "name": "operatorsSignatureBitmap",
           "type": "bytes"
+        },
+        {
+          "name": "expectedGeneration",
+          "type": "u64"
         }
       ],
       "discriminant": {
         "type": "u8",
-        "value": 10
+        "value": 9
       }
     },
     {
@@ -620,7 +593,7 @@
       ],
       "discriminant": {
         "type": "u8",
-        "value": 11
+        "value": 10
       }
     },
     {
@@ -657,7 +630,7 @@
       ],
       "discriminant": {
         "type": "u8",
-        "value": 12
+        "value": 11
       }
     },
     {
@@ -692,7 +665,7 @@
       "args": [],
       "discriminant": {
         "type": "u8",
-        "value": 13
+        "value": 12
       }
     }
   ],
@@ -895,6 +868,12 @@
             "type": {
               "defined": "PodU64"
             }
+          },
+          {
+            "name": "generation",
+            "type": {
+              "defined": "PodU64"
+            }
           }
         ]
       }
@@ -931,37 +910,6 @@
                   "defined": "VaultEntry"
                 },
                 1
-              ]
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "VoteCounter",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "ncn",
-            "type": "publicKey"
-          },
-          {
-            "name": "count",
-            "type": {
-              "defined": "PodU64"
-            }
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          },
-          {
-            "name": "reserved",
-            "type": {
-              "array": [
-                "u8",
-                7
               ]
             }
           }
@@ -1792,6 +1740,16 @@
       "code": 8806,
       "name": "InvalidConsensusThresholdBps",
       "msg": "Invalid consensus threshold bps"
+    },
+    {
+      "code": 8807,
+      "name": "SnapshotGenerationMismatch",
+      "msg": "Snapshot generation mismatch"
+    },
+    {
+      "code": 8808,
+      "name": "InsufficientStakeBps",
+      "msg": "Insufficient signed stake bps for consensus threshold"
     }
   ],
   "metadata": {

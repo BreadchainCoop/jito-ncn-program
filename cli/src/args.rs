@@ -185,8 +185,6 @@ pub enum ProgramCommand {
     /// Instructions
     CreateVaultRegistry,
 
-    CreateVoteCounter {},
-
     RegisterVault {},
 
     RegisterOperator {
@@ -234,30 +232,29 @@ pub enum ProgramCommand {
         operator: String,
     },
 
-    /// Cast a vote using BLS multi-signature aggregation
-    CastVote {
-        #[arg(long, help = "Aggregated G1 signature (64 bytes hex)")]
+    /// Verify a BLS certificate over a message digest (stateless; mutates nothing)
+    VerifyCertificate {
+        #[arg(long, help = "Message digest the certificate signs (32 bytes hex)")]
+        digest: String,
+        #[arg(long, help = "Aggregated G1 signature (32 bytes hex, compressed)")]
         aggregated_signature: String,
-        #[arg(long, help = "Aggregated G2 public key (128 bytes hex)")]
+        #[arg(long, help = "Aggregated G2 public key (64 bytes hex, compressed)")]
         aggregated_g2: String,
         #[arg(long, help = "Bitmap indicating which operators signed (hex string)")]
         signers_bitmap: String,
         #[arg(
             long,
-            help = "Message to sign (32 bytes hex, defaults to current vote counter)"
+            help = "Snapshot generation the certificate was assembled against (defaults to the current snapshot generation)"
         )]
-        message: Option<String>,
+        expected_generation: Option<u64>,
     },
 
-    /// Generate BLS signature for vote aggregation
+    /// Generate a BLS signature over a message digest for certificate aggregation
     GenerateVoteSignature {
         #[arg(long, help = "Operator private key (32 bytes hex)")]
         private_key: String,
-        #[arg(
-            long,
-            help = "Message to sign (32 bytes hex, defaults to current vote counter)"
-        )]
-        message: Option<String>,
+        #[arg(long, help = "Message digest to sign (32 bytes hex)")]
+        message: String,
     },
 
     /// Aggregate multiple BLS signatures for voting
@@ -296,8 +293,6 @@ pub enum ProgramCommand {
     GetAllNCNOperatorAccounts,
     GetNCNProgramConfig,
     GetVaultRegistry,
-
-    GetVoteCounter {},
 
     GetSnapshot,
     GetOperatorSnapshot {

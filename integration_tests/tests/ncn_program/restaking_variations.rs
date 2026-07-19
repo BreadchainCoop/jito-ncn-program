@@ -6,7 +6,9 @@ mod tests {
     use solana_sdk::msg;
 
     use crate::fixtures::{
-        ncn_program_client::assert_ncn_program_error, test_builder::TestBuilder, TestResult,
+        ncn_program_client::assert_ncn_program_error,
+        test_builder::{TestBuilder, TEST_DIGEST},
+        TestResult,
     };
 
     #[tokio::test]
@@ -28,7 +30,7 @@ mod tests {
                 .await?;
 
             fixture
-                .cast_vote_all_operators_who_can_vote(&test_ncn)
+                .verify_certificate_all_operators_who_can_sign(&test_ncn)
                 .await?;
         }
 
@@ -48,7 +50,7 @@ mod tests {
                 .update_snapshot_test_ncn_new_epoch(&test_ncn)
                 .await?;
             fixture
-                .cast_vote_all_operators_who_can_vote(&test_ncn)
+                .verify_certificate_all_operators_who_can_sign(&test_ncn)
                 .await?;
         }
 
@@ -79,7 +81,7 @@ mod tests {
                 .await?;
 
             fixture
-                .cast_vote_all_operators_who_can_vote(&test_ncn)
+                .verify_certificate_all_operators_who_can_sign(&test_ncn)
                 .await?;
         }
 
@@ -112,7 +114,7 @@ mod tests {
 
             let none_signers_indecies: Vec<usize> = vec![];
             let result = fixture
-                .cast_vote_for_test_ncn(&test_ncn, none_signers_indecies)
+                .verify_certificate_for_test_ncn(&test_ncn, TEST_DIGEST, none_signers_indecies)
                 .await;
             assert_ncn_program_error(result, NCNProgramError::OperatorHasNoMinimumStake, Some(1));
         }

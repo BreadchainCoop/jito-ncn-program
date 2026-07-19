@@ -9,10 +9,10 @@ use jito_vault_core::{
 use ncn_program_client::{
     instructions::{
         AdminRegisterStMintBuilder, AdminSetNewAdminBuilder, AdminSetParametersBuilder,
-        CastVoteBuilder, InitializeConfigBuilder, InitializeSnapshotBuilder,
-        InitializeVaultRegistryBuilder, InitializeVoteCounterBuilder, ReallocSnapshotBuilder,
-        RegisterOperatorBuilder, RegisterVaultBuilder, SnapshotVaultOperatorDelegationBuilder,
-        UpdateOperatorBN128KeysBuilder, UpdateOperatorIpPortBuilder,
+        InitializeConfigBuilder, InitializeSnapshotBuilder, InitializeVaultRegistryBuilder,
+        ReallocSnapshotBuilder, RegisterOperatorBuilder, RegisterVaultBuilder,
+        SnapshotVaultOperatorDelegationBuilder, UpdateOperatorBN128KeysBuilder,
+        UpdateOperatorIpPortBuilder, VerifyCertificateBuilder,
     },
     types::ConfigAdminRole,
 };
@@ -25,7 +25,6 @@ use ncn_program_core::{
     ncn_operator_account::NCNOperatorAccount,
     snapshot::{OperatorSnapshot, Snapshot},
     vault_registry::VaultRegistry,
-    vote_counter::VoteCounter,
 };
 use solana_program::{
     instruction::InstructionError, native_token::sol_to_lamports, pubkey::Pubkey,
@@ -97,48 +96,10 @@ impl NCNProgramClient {
         self.do_initialize_config(ncn_root.ncn_pubkey, &ncn_root.ncn_admin, None)
             .await?;
 
-        self.do_initialize_vote_counter(ncn_root.ncn_pubkey).await?;
-
         self.do_full_initialize_vault_registry(ncn_root.ncn_pubkey)
             .await?;
 
         Ok(())
-    }
-
-    /// Initializes the vote counter account for a given NCN.
-    pub async fn do_initialize_vote_counter(&mut self, ncn: Pubkey) -> TestResult<()> {
-        let config = NcnConfig::find_program_address(&ncn_program::id(), &ncn).0;
-        let (vote_counter, _, _) = VoteCounter::find_program_address(&ncn_program::id(), &ncn);
-        let (account_payer, _, _) = AccountPayer::find_program_address(&ncn_program::id(), &ncn);
-
-        self.initialize_vote_counter(config, vote_counter, ncn, account_payer)
-            .await
-    }
-
-    /// Sends a transaction to initialize the vote counter account.
-    pub async fn initialize_vote_counter(
-        &mut self,
-        config: Pubkey,
-        vote_counter: Pubkey,
-        ncn: Pubkey,
-        account_payer: Pubkey,
-    ) -> TestResult<()> {
-        let ix = InitializeVoteCounterBuilder::new()
-            .config(config)
-            .vote_counter(vote_counter)
-            .ncn(ncn)
-            .account_payer(account_payer)
-            .system_program(system_program::id())
-            .instruction();
-
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
-        self.process_transaction(&Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&self.payer.pubkey()),
-            &[&self.payer],
-            blockhash,
-        ))
-        .await
     }
 
     /// Fetches the NCN Config account for a given NCN pubkey.
@@ -146,17 +107,6 @@ impl NCNProgramClient {
         let config_pda = NcnConfig::find_program_address(&ncn_program::id(), &ncn_pubkey).0;
         let config = self.banks_client.get_account(config_pda).await?.unwrap();
         Ok(*NcnConfig::try_from_slice_unchecked(config.data.as_slice()).unwrap())
-    }
-
-    /// Fetches the VoteCounter account for a given NCN pubkey.
-    pub async fn get_vote_counter(&mut self, ncn_pubkey: Pubkey) -> TestResult<VoteCounter> {
-        let vote_counter_pda = VoteCounter::find_program_address(&ncn_program::id(), &ncn_pubkey).0;
-        let vote_counter = self
-            .banks_client
-            .get_account(vote_counter_pda)
-            .await?
-            .unwrap();
-        Ok(*VoteCounter::try_from_slice_unchecked(vote_counter.data.as_slice()).unwrap())
     }
 
     /// Fetches the VaultRegistry account for a given NCN pubkey.
@@ -615,56 +565,60 @@ impl NCNProgramClient {
         .await
     }
 
-    /// Casts a vote using BLS signature aggregation for a given epoch.
-    pub async fn do_cast_vote(
+    /// Verifies a BLS certificate over `digest` (stateless; mutates nothing).
+    pub async fn do_verify_certificate(
         &mut self,
         ncn: Pubkey,
+        digest: [u8; 32],
         agg_sig: [u8; 32],
         apk2: [u8; 64],
         signers_bitmap: Vec<u8>,
+        expected_generation: u64,
     ) -> Result<(), TestError> {
         let ncn_config = NcnConfig::find_program_address(&ncn_program::id(), &ncn).0;
         let snapshot = Snapshot::find_program_address(&ncn_program::id(), &ncn).0;
         let restaking_config = Config::find_program_address(&jito_restaking_program::id()).0;
-        let vote_counter = VoteCounter::find_program_address(&ncn_program::id(), &ncn).0;
 
-        self.cast_vote(
+        self.verify_certificate(
             ncn_config,
             ncn,
             snapshot,
             restaking_config,
-            vote_counter,
+            digest,
             agg_sig,
             apk2,
             signers_bitmap,
+            expected_generation,
         )
         .await
     }
 
-    /// Sends a transaction to cast a vote using BLS signature verification.
+    /// Sends a VerifyCertificate transaction (stateless BLS certificate check).
     #[allow(clippy::too_many_arguments)]
-    pub async fn cast_vote(
+    pub async fn verify_certificate(
         &mut self,
         ncn_config: Pubkey,
         ncn: Pubkey,
         snapshot: Pubkey,
         restaking_config: Pubkey,
-        vote_counter: Pubkey,
+        digest: [u8; 32],
         agg_sig: [u8; 32],
         apk2: [u8; 64],
         signers_bitmap: Vec<u8>,
+        expected_generation: u64,
     ) -> Result<(), TestError> {
         let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(2_000_000);
 
-        let ix = CastVoteBuilder::new()
-            .config(ncn_config)
+        let ix = VerifyCertificateBuilder::new()
+            .ncn_config(ncn_config)
             .ncn(ncn)
             .snapshot(snapshot)
             .restaking_config(restaking_config)
-            .vote_counter(vote_counter)
-            .aggregated_signature(agg_sig)
+            .digest(digest)
             .aggregated_g2(apk2)
+            .aggregated_signature(agg_sig)
             .operators_signature_bitmap(signers_bitmap)
+            .expected_generation(expected_generation)
             .instruction();
 
         let blockhash = self.banks_client.get_latest_blockhash().await?;

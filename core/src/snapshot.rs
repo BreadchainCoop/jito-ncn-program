@@ -45,6 +45,11 @@ pub struct Snapshot {
     minimum_stake: StakeWeights,
 
     last_snapshot_slot: PodU64, // Track the last slot when the snapshot was taken
+
+    /// Operator-set generation. Bumped on operator register, remove, and key
+    /// rotation; certificates verify only against their generation
+    /// (docs/INTERFACES.md par.3).
+    generation: PodU64,
 }
 
 impl Discriminator for Snapshot {
@@ -66,6 +71,7 @@ impl Snapshot {
             total_aggregated_g1_pubkey: [0; G1_COMPRESSED_POINT_SIZE],
             operator_snapshots: [OperatorSnapshot::default(); 256],
             minimum_stake,
+            generation: PodU64::from(0),
         }
     }
 
@@ -88,6 +94,7 @@ impl Snapshot {
         let default_operator_snapshot = OperatorSnapshot::default();
         self.operator_snapshots = [default_operator_snapshot; 256];
         self.minimum_stake = minimum_stake;
+        self.generation = PodU64::from(0);
     }
 
     pub fn seeds(ncn: &Pubkey) -> Vec<Vec<u8>> {
@@ -145,8 +152,31 @@ impl Snapshot {
         self.last_snapshot_slot.into()
     }
 
+    /// Records the slot of the latest stake snapshot (operator registration or
+    /// vault-operator-delegation crank). VerifyCertificate's slot-freshness
+    /// check measures against this.
+    pub fn set_last_snapshot_slot(&mut self, slot: u64) {
+        self.last_snapshot_slot = PodU64::from(slot);
+    }
+
     pub fn minimum_stake(&self) -> &StakeWeights {
         &self.minimum_stake
+    }
+
+    /// Current operator-set generation (bumped on register / remove / key rotation)
+    pub fn generation(&self) -> u64 {
+        self.generation.into()
+    }
+
+    /// Bumps the operator-set generation, invalidating certificates assembled
+    /// against the previous generation.
+    pub fn bump_generation(&mut self) -> Result<(), NCNProgramError> {
+        self.generation = PodU64::from(
+            self.generation()
+                .checked_add(1)
+                .ok_or(NCNProgramError::ArithmeticOverflow)?,
+        );
+        Ok(())
     }
 
     fn increment_operator_registration(
@@ -700,9 +730,25 @@ mod tests {
             + size_of::<PodU64>() // operators_can_vote_count
             + size_of::<[u8; G1_COMPRESSED_POINT_SIZE]>() // total_aggregated_g1_pubkey
             + size_of::<[OperatorSnapshot; 256]>() // operator_snapshots
-            + size_of::<StakeWeights>(); // minimum_stake
+            + size_of::<StakeWeights>() // minimum_stake
+            + size_of::<PodU64>(); // generation
 
         assert_eq!(size_of::<Snapshot>(), expected_total);
+    }
+
+    #[test]
+    fn test_snapshot_generation_bump() {
+        let mut snapshot = Box::new(Snapshot::new(
+            &Pubkey::new_unique(),
+            1,
+            100,
+            StakeWeights::new(1),
+        ));
+        assert_eq!(snapshot.generation(), 0);
+        snapshot.bump_generation().unwrap();
+        assert_eq!(snapshot.generation(), 1);
+        snapshot.bump_generation().unwrap();
+        assert_eq!(snapshot.generation(), 2);
     }
 
     #[test]

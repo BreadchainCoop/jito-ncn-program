@@ -9,34 +9,32 @@ use borsh::BorshDeserialize;
 use borsh::BorshSerialize;
 
 /// Accounts.
-pub struct CastVote {
-    pub config: solana_program::pubkey::Pubkey,
+pub struct VerifyCertificate {
+    pub ncn_config: solana_program::pubkey::Pubkey,
 
     pub ncn: solana_program::pubkey::Pubkey,
 
     pub snapshot: solana_program::pubkey::Pubkey,
 
     pub restaking_config: solana_program::pubkey::Pubkey,
-
-    pub vote_counter: solana_program::pubkey::Pubkey,
 }
 
-impl CastVote {
+impl VerifyCertificate {
     pub fn instruction(
         &self,
-        args: CastVoteInstructionArgs,
+        args: VerifyCertificateInstructionArgs,
     ) -> solana_program::instruction::Instruction {
         self.instruction_with_remaining_accounts(args, &[])
     }
     #[allow(clippy::vec_init_then_push)]
     pub fn instruction_with_remaining_accounts(
         &self,
-        args: CastVoteInstructionArgs,
+        args: VerifyCertificateInstructionArgs,
         remaining_accounts: &[solana_program::instruction::AccountMeta],
     ) -> solana_program::instruction::Instruction {
-        let mut accounts = Vec::with_capacity(5 + remaining_accounts.len());
+        let mut accounts = Vec::with_capacity(4 + remaining_accounts.len());
         accounts.push(solana_program::instruction::AccountMeta::new_readonly(
-            self.config,
+            self.ncn_config,
             false,
         ));
         accounts.push(solana_program::instruction::AccountMeta::new_readonly(
@@ -50,12 +48,10 @@ impl CastVote {
             self.restaking_config,
             false,
         ));
-        accounts.push(solana_program::instruction::AccountMeta::new(
-            self.vote_counter,
-            false,
-        ));
         accounts.extend_from_slice(remaining_accounts);
-        let mut data = CastVoteInstructionData::new().try_to_vec().unwrap();
+        let mut data = VerifyCertificateInstructionData::new()
+            .try_to_vec()
+            .unwrap();
         let mut args = args.try_to_vec().unwrap();
         data.append(&mut args);
 
@@ -68,17 +64,17 @@ impl CastVote {
 }
 
 #[derive(BorshDeserialize, BorshSerialize)]
-pub struct CastVoteInstructionData {
+pub struct VerifyCertificateInstructionData {
     discriminator: u8,
 }
 
-impl CastVoteInstructionData {
+impl VerifyCertificateInstructionData {
     pub fn new() -> Self {
-        Self { discriminator: 10 }
+        Self { discriminator: 9 }
     }
 }
 
-impl Default for CastVoteInstructionData {
+impl Default for VerifyCertificateInstructionData {
     fn default() -> Self {
         Self::new()
     }
@@ -86,41 +82,43 @@ impl Default for CastVoteInstructionData {
 
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct CastVoteInstructionArgs {
-    pub aggregated_signature: [u8; 32],
+pub struct VerifyCertificateInstructionArgs {
+    pub digest: [u8; 32],
     pub aggregated_g2: [u8; 64],
+    pub aggregated_signature: [u8; 32],
     pub operators_signature_bitmap: Vec<u8>,
+    pub expected_generation: u64,
 }
 
-/// Instruction builder for `CastVote`.
+/// Instruction builder for `VerifyCertificate`.
 ///
 /// ### Accounts:
 ///
-///   0. `[]` config
+///   0. `[]` ncn_config
 ///   1. `[]` ncn
 ///   2. `[]` snapshot
 ///   3. `[]` restaking_config
-///   4. `[writable]` vote_counter
 #[derive(Clone, Debug, Default)]
-pub struct CastVoteBuilder {
-    config: Option<solana_program::pubkey::Pubkey>,
+pub struct VerifyCertificateBuilder {
+    ncn_config: Option<solana_program::pubkey::Pubkey>,
     ncn: Option<solana_program::pubkey::Pubkey>,
     snapshot: Option<solana_program::pubkey::Pubkey>,
     restaking_config: Option<solana_program::pubkey::Pubkey>,
-    vote_counter: Option<solana_program::pubkey::Pubkey>,
-    aggregated_signature: Option<[u8; 32]>,
+    digest: Option<[u8; 32]>,
     aggregated_g2: Option<[u8; 64]>,
+    aggregated_signature: Option<[u8; 32]>,
     operators_signature_bitmap: Option<Vec<u8>>,
+    expected_generation: Option<u64>,
     __remaining_accounts: Vec<solana_program::instruction::AccountMeta>,
 }
 
-impl CastVoteBuilder {
+impl VerifyCertificateBuilder {
     pub fn new() -> Self {
         Self::default()
     }
     #[inline(always)]
-    pub fn config(&mut self, config: solana_program::pubkey::Pubkey) -> &mut Self {
-        self.config = Some(config);
+    pub fn ncn_config(&mut self, ncn_config: solana_program::pubkey::Pubkey) -> &mut Self {
+        self.ncn_config = Some(ncn_config);
         self
     }
     #[inline(always)]
@@ -142,13 +140,8 @@ impl CastVoteBuilder {
         self
     }
     #[inline(always)]
-    pub fn vote_counter(&mut self, vote_counter: solana_program::pubkey::Pubkey) -> &mut Self {
-        self.vote_counter = Some(vote_counter);
-        self
-    }
-    #[inline(always)]
-    pub fn aggregated_signature(&mut self, aggregated_signature: [u8; 32]) -> &mut Self {
-        self.aggregated_signature = Some(aggregated_signature);
+    pub fn digest(&mut self, digest: [u8; 32]) -> &mut Self {
+        self.digest = Some(digest);
         self
     }
     #[inline(always)]
@@ -157,8 +150,18 @@ impl CastVoteBuilder {
         self
     }
     #[inline(always)]
+    pub fn aggregated_signature(&mut self, aggregated_signature: [u8; 32]) -> &mut Self {
+        self.aggregated_signature = Some(aggregated_signature);
+        self
+    }
+    #[inline(always)]
     pub fn operators_signature_bitmap(&mut self, operators_signature_bitmap: Vec<u8>) -> &mut Self {
         self.operators_signature_bitmap = Some(operators_signature_bitmap);
+        self
+    }
+    #[inline(always)]
+    pub fn expected_generation(&mut self, expected_generation: u64) -> &mut Self {
+        self.expected_generation = Some(expected_generation);
         self
     }
     /// Add an additional account to the instruction.
@@ -181,76 +184,75 @@ impl CastVoteBuilder {
     }
     #[allow(clippy::clone_on_copy)]
     pub fn instruction(&self) -> solana_program::instruction::Instruction {
-        let accounts = CastVote {
-            config: self.config.expect("config is not set"),
+        let accounts = VerifyCertificate {
+            ncn_config: self.ncn_config.expect("ncn_config is not set"),
             ncn: self.ncn.expect("ncn is not set"),
             snapshot: self.snapshot.expect("snapshot is not set"),
             restaking_config: self.restaking_config.expect("restaking_config is not set"),
-            vote_counter: self.vote_counter.expect("vote_counter is not set"),
         };
-        let args = CastVoteInstructionArgs {
-            aggregated_signature: self
-                .aggregated_signature
-                .clone()
-                .expect("aggregated_signature is not set"),
+        let args = VerifyCertificateInstructionArgs {
+            digest: self.digest.clone().expect("digest is not set"),
             aggregated_g2: self
                 .aggregated_g2
                 .clone()
                 .expect("aggregated_g2 is not set"),
+            aggregated_signature: self
+                .aggregated_signature
+                .clone()
+                .expect("aggregated_signature is not set"),
             operators_signature_bitmap: self
                 .operators_signature_bitmap
                 .clone()
                 .expect("operators_signature_bitmap is not set"),
+            expected_generation: self
+                .expected_generation
+                .clone()
+                .expect("expected_generation is not set"),
         };
 
         accounts.instruction_with_remaining_accounts(args, &self.__remaining_accounts)
     }
 }
 
-/// `cast_vote` CPI accounts.
-pub struct CastVoteCpiAccounts<'a, 'b> {
-    pub config: &'b solana_program::account_info::AccountInfo<'a>,
+/// `verify_certificate` CPI accounts.
+pub struct VerifyCertificateCpiAccounts<'a, 'b> {
+    pub ncn_config: &'b solana_program::account_info::AccountInfo<'a>,
 
     pub ncn: &'b solana_program::account_info::AccountInfo<'a>,
 
     pub snapshot: &'b solana_program::account_info::AccountInfo<'a>,
 
     pub restaking_config: &'b solana_program::account_info::AccountInfo<'a>,
-
-    pub vote_counter: &'b solana_program::account_info::AccountInfo<'a>,
 }
 
-/// `cast_vote` CPI instruction.
-pub struct CastVoteCpi<'a, 'b> {
+/// `verify_certificate` CPI instruction.
+pub struct VerifyCertificateCpi<'a, 'b> {
     /// The program to invoke.
     pub __program: &'b solana_program::account_info::AccountInfo<'a>,
 
-    pub config: &'b solana_program::account_info::AccountInfo<'a>,
+    pub ncn_config: &'b solana_program::account_info::AccountInfo<'a>,
 
     pub ncn: &'b solana_program::account_info::AccountInfo<'a>,
 
     pub snapshot: &'b solana_program::account_info::AccountInfo<'a>,
 
     pub restaking_config: &'b solana_program::account_info::AccountInfo<'a>,
-
-    pub vote_counter: &'b solana_program::account_info::AccountInfo<'a>,
     /// The arguments for the instruction.
-    pub __args: CastVoteInstructionArgs,
+    pub __args: VerifyCertificateInstructionArgs,
 }
 
-impl<'a, 'b> CastVoteCpi<'a, 'b> {
+impl<'a, 'b> VerifyCertificateCpi<'a, 'b> {
     pub fn new(
         program: &'b solana_program::account_info::AccountInfo<'a>,
-        accounts: CastVoteCpiAccounts<'a, 'b>,
-        args: CastVoteInstructionArgs,
+        accounts: VerifyCertificateCpiAccounts<'a, 'b>,
+        args: VerifyCertificateInstructionArgs,
     ) -> Self {
         Self {
             __program: program,
-            config: accounts.config,
+            ncn_config: accounts.ncn_config,
             ncn: accounts.ncn,
             snapshot: accounts.snapshot,
             restaking_config: accounts.restaking_config,
-            vote_counter: accounts.vote_counter,
             __args: args,
         }
     }
@@ -287,9 +289,9 @@ impl<'a, 'b> CastVoteCpi<'a, 'b> {
             bool,
         )],
     ) -> solana_program::entrypoint::ProgramResult {
-        let mut accounts = Vec::with_capacity(5 + remaining_accounts.len());
+        let mut accounts = Vec::with_capacity(4 + remaining_accounts.len());
         accounts.push(solana_program::instruction::AccountMeta::new_readonly(
-            *self.config.key,
+            *self.ncn_config.key,
             false,
         ));
         accounts.push(solana_program::instruction::AccountMeta::new_readonly(
@@ -304,10 +306,6 @@ impl<'a, 'b> CastVoteCpi<'a, 'b> {
             *self.restaking_config.key,
             false,
         ));
-        accounts.push(solana_program::instruction::AccountMeta::new(
-            *self.vote_counter.key,
-            false,
-        ));
         remaining_accounts.iter().for_each(|remaining_account| {
             accounts.push(solana_program::instruction::AccountMeta {
                 pubkey: *remaining_account.0.key,
@@ -315,7 +313,9 @@ impl<'a, 'b> CastVoteCpi<'a, 'b> {
                 is_writable: remaining_account.2,
             })
         });
-        let mut data = CastVoteInstructionData::new().try_to_vec().unwrap();
+        let mut data = VerifyCertificateInstructionData::new()
+            .try_to_vec()
+            .unwrap();
         let mut args = self.__args.try_to_vec().unwrap();
         data.append(&mut args);
 
@@ -324,13 +324,12 @@ impl<'a, 'b> CastVoteCpi<'a, 'b> {
             accounts,
             data,
         };
-        let mut account_infos = Vec::with_capacity(5 + 1 + remaining_accounts.len());
+        let mut account_infos = Vec::with_capacity(4 + 1 + remaining_accounts.len());
         account_infos.push(self.__program.clone());
-        account_infos.push(self.config.clone());
+        account_infos.push(self.ncn_config.clone());
         account_infos.push(self.ncn.clone());
         account_infos.push(self.snapshot.clone());
         account_infos.push(self.restaking_config.clone());
-        account_infos.push(self.vote_counter.clone());
         remaining_accounts
             .iter()
             .for_each(|remaining_account| account_infos.push(remaining_account.0.clone()));
@@ -343,42 +342,42 @@ impl<'a, 'b> CastVoteCpi<'a, 'b> {
     }
 }
 
-/// Instruction builder for `CastVote` via CPI.
+/// Instruction builder for `VerifyCertificate` via CPI.
 ///
 /// ### Accounts:
 ///
-///   0. `[]` config
+///   0. `[]` ncn_config
 ///   1. `[]` ncn
 ///   2. `[]` snapshot
 ///   3. `[]` restaking_config
-///   4. `[writable]` vote_counter
 #[derive(Clone, Debug)]
-pub struct CastVoteCpiBuilder<'a, 'b> {
-    instruction: Box<CastVoteCpiBuilderInstruction<'a, 'b>>,
+pub struct VerifyCertificateCpiBuilder<'a, 'b> {
+    instruction: Box<VerifyCertificateCpiBuilderInstruction<'a, 'b>>,
 }
 
-impl<'a, 'b> CastVoteCpiBuilder<'a, 'b> {
+impl<'a, 'b> VerifyCertificateCpiBuilder<'a, 'b> {
     pub fn new(program: &'b solana_program::account_info::AccountInfo<'a>) -> Self {
-        let instruction = Box::new(CastVoteCpiBuilderInstruction {
+        let instruction = Box::new(VerifyCertificateCpiBuilderInstruction {
             __program: program,
-            config: None,
+            ncn_config: None,
             ncn: None,
             snapshot: None,
             restaking_config: None,
-            vote_counter: None,
-            aggregated_signature: None,
+            digest: None,
             aggregated_g2: None,
+            aggregated_signature: None,
             operators_signature_bitmap: None,
+            expected_generation: None,
             __remaining_accounts: Vec::new(),
         });
         Self { instruction }
     }
     #[inline(always)]
-    pub fn config(
+    pub fn ncn_config(
         &mut self,
-        config: &'b solana_program::account_info::AccountInfo<'a>,
+        ncn_config: &'b solana_program::account_info::AccountInfo<'a>,
     ) -> &mut Self {
-        self.instruction.config = Some(config);
+        self.instruction.ncn_config = Some(ncn_config);
         self
     }
     #[inline(always)]
@@ -403,16 +402,8 @@ impl<'a, 'b> CastVoteCpiBuilder<'a, 'b> {
         self
     }
     #[inline(always)]
-    pub fn vote_counter(
-        &mut self,
-        vote_counter: &'b solana_program::account_info::AccountInfo<'a>,
-    ) -> &mut Self {
-        self.instruction.vote_counter = Some(vote_counter);
-        self
-    }
-    #[inline(always)]
-    pub fn aggregated_signature(&mut self, aggregated_signature: [u8; 32]) -> &mut Self {
-        self.instruction.aggregated_signature = Some(aggregated_signature);
+    pub fn digest(&mut self, digest: [u8; 32]) -> &mut Self {
+        self.instruction.digest = Some(digest);
         self
     }
     #[inline(always)]
@@ -421,8 +412,18 @@ impl<'a, 'b> CastVoteCpiBuilder<'a, 'b> {
         self
     }
     #[inline(always)]
+    pub fn aggregated_signature(&mut self, aggregated_signature: [u8; 32]) -> &mut Self {
+        self.instruction.aggregated_signature = Some(aggregated_signature);
+        self
+    }
+    #[inline(always)]
     pub fn operators_signature_bitmap(&mut self, operators_signature_bitmap: Vec<u8>) -> &mut Self {
         self.instruction.operators_signature_bitmap = Some(operators_signature_bitmap);
+        self
+    }
+    #[inline(always)]
+    pub fn expected_generation(&mut self, expected_generation: u64) -> &mut Self {
+        self.instruction.expected_generation = Some(expected_generation);
         self
     }
     /// Add an additional account to the instruction.
@@ -466,27 +467,33 @@ impl<'a, 'b> CastVoteCpiBuilder<'a, 'b> {
         &self,
         signers_seeds: &[&[&[u8]]],
     ) -> solana_program::entrypoint::ProgramResult {
-        let args = CastVoteInstructionArgs {
-            aggregated_signature: self
-                .instruction
-                .aggregated_signature
-                .clone()
-                .expect("aggregated_signature is not set"),
+        let args = VerifyCertificateInstructionArgs {
+            digest: self.instruction.digest.clone().expect("digest is not set"),
             aggregated_g2: self
                 .instruction
                 .aggregated_g2
                 .clone()
                 .expect("aggregated_g2 is not set"),
+            aggregated_signature: self
+                .instruction
+                .aggregated_signature
+                .clone()
+                .expect("aggregated_signature is not set"),
             operators_signature_bitmap: self
                 .instruction
                 .operators_signature_bitmap
                 .clone()
                 .expect("operators_signature_bitmap is not set"),
+            expected_generation: self
+                .instruction
+                .expected_generation
+                .clone()
+                .expect("expected_generation is not set"),
         };
-        let instruction = CastVoteCpi {
+        let instruction = VerifyCertificateCpi {
             __program: self.instruction.__program,
 
-            config: self.instruction.config.expect("config is not set"),
+            ncn_config: self.instruction.ncn_config.expect("ncn_config is not set"),
 
             ncn: self.instruction.ncn.expect("ncn is not set"),
 
@@ -496,11 +503,6 @@ impl<'a, 'b> CastVoteCpiBuilder<'a, 'b> {
                 .instruction
                 .restaking_config
                 .expect("restaking_config is not set"),
-
-            vote_counter: self
-                .instruction
-                .vote_counter
-                .expect("vote_counter is not set"),
             __args: args,
         };
         instruction.invoke_signed_with_remaining_accounts(
@@ -511,16 +513,17 @@ impl<'a, 'b> CastVoteCpiBuilder<'a, 'b> {
 }
 
 #[derive(Clone, Debug)]
-struct CastVoteCpiBuilderInstruction<'a, 'b> {
+struct VerifyCertificateCpiBuilderInstruction<'a, 'b> {
     __program: &'b solana_program::account_info::AccountInfo<'a>,
-    config: Option<&'b solana_program::account_info::AccountInfo<'a>>,
+    ncn_config: Option<&'b solana_program::account_info::AccountInfo<'a>>,
     ncn: Option<&'b solana_program::account_info::AccountInfo<'a>>,
     snapshot: Option<&'b solana_program::account_info::AccountInfo<'a>>,
     restaking_config: Option<&'b solana_program::account_info::AccountInfo<'a>>,
-    vote_counter: Option<&'b solana_program::account_info::AccountInfo<'a>>,
-    aggregated_signature: Option<[u8; 32]>,
+    digest: Option<[u8; 32]>,
     aggregated_g2: Option<[u8; 64]>,
+    aggregated_signature: Option<[u8; 32]>,
     operators_signature_bitmap: Option<Vec<u8>>,
+    expected_generation: Option<u64>,
     /// Additional instruction accounts `(AccountInfo, is_writable, is_signer)`.
     __remaining_accounts: Vec<(
         &'b solana_program::account_info::AccountInfo<'a>,

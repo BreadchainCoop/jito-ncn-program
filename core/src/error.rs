@@ -238,6 +238,10 @@ pub enum NCNProgramError {
     InvalidOperatorCount,
     #[error("Invalid consensus threshold bps")]
     InvalidConsensusThresholdBps,
+    #[error("Snapshot generation mismatch")]
+    SnapshotGenerationMismatch,
+    #[error("Insufficient signed stake bps for consensus threshold")]
+    InsufficientStakeBps,
 }
 
 impl<T> DecodeError<T> for NCNProgramError {

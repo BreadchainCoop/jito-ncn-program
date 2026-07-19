@@ -246,6 +246,10 @@ export const NCN_PROGRAM_ERROR__NO_OPERATORS_REGISTERED = 0x2264; // 8804
 export const NCN_PROGRAM_ERROR__INVALID_OPERATOR_COUNT = 0x2265; // 8805
 /** InvalidConsensusThresholdBps: Invalid consensus threshold bps */
 export const NCN_PROGRAM_ERROR__INVALID_CONSENSUS_THRESHOLD_BPS = 0x2266; // 8806
+/** SnapshotGenerationMismatch: Snapshot generation mismatch */
+export const NCN_PROGRAM_ERROR__SNAPSHOT_GENERATION_MISMATCH = 0x2267; // 8807
+/** InsufficientStakeBps: Insufficient signed stake bps for consensus threshold */
+export const NCN_PROGRAM_ERROR__INSUFFICIENT_STAKE_BPS = 0x2268; // 8808
 
 export type NcnProgramError =
   | typeof NCN_PROGRAM_ERROR__ACCOUNT_ALREADY_INITIALIZED
@@ -297,6 +301,7 @@ export type NcnProgramError =
   | typeof NCN_PROGRAM_ERROR__INCORRECT_NCN
   | typeof NCN_PROGRAM_ERROR__INCORRECT_NCN_ADMIN
   | typeof NCN_PROGRAM_ERROR__INCORRECT_WEIGHT_TABLE_ADMIN
+  | typeof NCN_PROGRAM_ERROR__INSUFFICIENT_STAKE_BPS
   | typeof NCN_PROGRAM_ERROR__INVALID_ACCOUNT_STATUS
   | typeof NCN_PROGRAM_ERROR__INVALID_ACCOUNT_TO_CLOSE_DISCRIMINATOR
   | typeof NCN_PROGRAM_ERROR__INVALID_BASE_FEE_GROUP
@@ -342,6 +347,7 @@ export type NcnProgramError =
   | typeof NCN_PROGRAM_ERROR__SERIALIZATION_ERROR
   | typeof NCN_PROGRAM_ERROR__SIGNATURE_VERIFICATION_FAILED
   | typeof NCN_PROGRAM_ERROR__SNAPSHOT_ALREADY_FINALIZED
+  | typeof NCN_PROGRAM_ERROR__SNAPSHOT_GENERATION_MISMATCH
   | typeof NCN_PROGRAM_ERROR__SNAPSHOT_NOT_FINALIZED
   | typeof NCN_PROGRAM_ERROR__TABLE_NOT_INITIALIZED
   | typeof NCN_PROGRAM_ERROR__TIE_BREAKER_ADMIN_INVALID
@@ -417,6 +423,7 @@ if (process.env.NODE_ENV !== 'production') {
     [NCN_PROGRAM_ERROR__INCORRECT_NCN]: `Incorrect NCN`,
     [NCN_PROGRAM_ERROR__INCORRECT_NCN_ADMIN]: `Incorrect NCN Admin`,
     [NCN_PROGRAM_ERROR__INCORRECT_WEIGHT_TABLE_ADMIN]: `Incorrect weight table admin`,
+    [NCN_PROGRAM_ERROR__INSUFFICIENT_STAKE_BPS]: `Insufficient signed stake bps for consensus threshold`,
     [NCN_PROGRAM_ERROR__INVALID_ACCOUNT_STATUS]: `Invalid Account Status`,
     [NCN_PROGRAM_ERROR__INVALID_ACCOUNT_TO_CLOSE_DISCRIMINATOR]: `Invalid account_to_close Discriminator`,
     [NCN_PROGRAM_ERROR__INVALID_BASE_FEE_GROUP]: `Not a valid base fee group`,
@@ -462,6 +469,7 @@ if (process.env.NODE_ENV !== 'production') {
     [NCN_PROGRAM_ERROR__SERIALIZATION_ERROR]: `Serialization error`,
     [NCN_PROGRAM_ERROR__SIGNATURE_VERIFICATION_FAILED]: `Signature verification failed`,
     [NCN_PROGRAM_ERROR__SNAPSHOT_ALREADY_FINALIZED]: `snapshot already finalized`,
+    [NCN_PROGRAM_ERROR__SNAPSHOT_GENERATION_MISMATCH]: `Snapshot generation mismatch`,
     [NCN_PROGRAM_ERROR__SNAPSHOT_NOT_FINALIZED]: `Snapshot not finalized`,
     [NCN_PROGRAM_ERROR__TABLE_NOT_INITIALIZED]: `Table not initialized`,
     [NCN_PROGRAM_ERROR__TIE_BREAKER_ADMIN_INVALID]: `Tie breaker admin invalid`,

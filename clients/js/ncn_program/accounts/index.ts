@@ -10,4 +10,3 @@ export * from './config';
 export * from './nCNOperatorAccount';
 export * from './snapshot';
 export * from './vaultRegistry';
-export * from './voteCounter';

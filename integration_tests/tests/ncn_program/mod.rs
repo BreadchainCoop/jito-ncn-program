@@ -1,11 +1,9 @@
 mod admin_set_parameters;
-mod cast_vote;
 mod fuzz_simulation_tests;
 mod initialize_config;
 mod initialize_operator_snapshot;
 mod initialize_snapshot;
 mod initialize_vault_registry;
-mod initialize_vote_counter;
 mod meta_tests;
 mod register_operator;
 mod register_vault;
@@ -15,3 +13,4 @@ mod simulation_test;
 mod snapshot_vault_operator_delegation;
 mod update_operator_bn128_keys;
 mod update_operator_ip_port;
+mod verify_certificate;

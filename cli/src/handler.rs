@@ -8,14 +8,14 @@ use crate::{
         get_all_tickets, get_all_vaults_in_ncn, get_ncn, get_ncn_operator_state,
         get_ncn_program_config, get_ncn_vault_ticket, get_operator_snapshot, get_snapshot,
         get_total_epoch_rent_cost, get_vault_ncn_ticket, get_vault_operator_delegation,
-        get_vault_registry, get_vote_counter,
+        get_vault_registry,
     },
     instructions::{
         admin_create_config, admin_fund_account_payer, admin_register_st_mint, admin_set_new_admin,
         admin_set_parameters, crank_register_vaults, crank_snapshot, crank_snapshot_unupdated,
-        create_snapshot, create_vault_registry, create_vote_counter, full_vault_update,
-        register_operator, register_vault, snapshot_vault_operator_delegation,
-        update_operator_ip_port,
+        create_snapshot, create_vault_registry, full_vault_update, register_operator,
+        register_vault, snapshot_vault_operator_delegation, update_operator_ip_port,
+        verify_certificate,
     },
     keeper::keeper_loop::startup_ncn_keeper,
 };
@@ -260,8 +260,6 @@ impl CliHandler {
             // Instructions
             ProgramCommand::CreateVaultRegistry => create_vault_registry(self).await,
 
-            ProgramCommand::CreateVoteCounter {} => create_vote_counter(self).await,
-
             ProgramCommand::RegisterVault {} => register_vault(self, self.vault()).await,
 
             ProgramCommand::RegisterOperator {
@@ -337,32 +335,35 @@ impl CliHandler {
                 snapshot_vault_operator_delegation(self, self.vault(), &operator, self.epoch).await
             }
 
-            ProgramCommand::CastVote {
+            ProgramCommand::VerifyCertificate {
+                digest,
                 aggregated_signature,
                 aggregated_g2,
                 signers_bitmap,
-                message,
+                expected_generation,
             } => {
                 use crate::bls_keys::hex_to_bytes;
-                use crate::instructions::cast_vote;
 
+                let digest_bytes = hex_to_bytes::<32>(&digest)?;
                 let agg_sig = hex_to_bytes::<32>(&aggregated_signature)?;
                 let apk2 = hex_to_bytes::<64>(&aggregated_g2)?;
                 let bitmap_bytes = hex::decode(&signers_bitmap)
                     .map_err(|e| anyhow!("Error parsing signers bitmap: {}", e))?;
 
-                let message_bytes = if let Some(msg) = message {
-                    hex_to_bytes::<32>(&msg)?
-                } else {
-                    // Get current vote counter as message
-                    let vote_counter = get_vote_counter(self).await?;
-                    let counter_bytes = vote_counter.count().to_le_bytes();
-                    let mut message_32 = [0u8; 32];
-                    message_32[..8].copy_from_slice(&counter_bytes);
-                    message_32
+                let expected_generation = match expected_generation {
+                    Some(generation) => generation,
+                    None => get_snapshot(self, self.epoch).await?.generation(),
                 };
 
-                cast_vote(self, self.epoch, agg_sig, apk2, bitmap_bytes, message_bytes).await
+                verify_certificate(
+                    self,
+                    digest_bytes,
+                    agg_sig,
+                    apk2,
+                    bitmap_bytes,
+                    expected_generation,
+                )
+                .await
             }
 
             ProgramCommand::GenerateVoteSignature {
@@ -372,16 +373,7 @@ impl CliHandler {
                 use crate::bls_keys::{generate_signature_from_private_key, hex_to_bytes};
 
                 let priv_key_bytes = hex_to_bytes::<32>(&private_key)?;
-                let message_bytes = if let Some(msg) = message {
-                    hex_to_bytes::<32>(&msg)?
-                } else {
-                    // Get current vote counter as message
-                    let vote_counter = get_vote_counter(self).await?;
-                    let counter_bytes = vote_counter.count().to_le_bytes();
-                    let mut message_32 = [0u8; 32];
-                    message_32[..8].copy_from_slice(&counter_bytes);
-                    message_32
-                };
+                let message_bytes = hex_to_bytes::<32>(&message)?;
 
                 let signature =
                     generate_signature_from_private_key(&priv_key_bytes, &message_bytes)?;
@@ -498,12 +490,6 @@ impl CliHandler {
             ProgramCommand::GetVaultRegistry => {
                 let vault_registry = get_vault_registry(self).await?;
                 info!("{}", vault_registry);
-                Ok(())
-            }
-
-            ProgramCommand::GetVoteCounter {} => {
-                let vote_counter = get_vote_counter(self).await?;
-                info!("Vote Counter: {:?}", vote_counter);
                 Ok(())
             }
 

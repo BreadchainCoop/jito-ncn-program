@@ -27,7 +27,7 @@ import {
 import { NCN_PROGRAM_PROGRAM_ADDRESS } from '../programs';
 import { getAccountMetaFactory, type ResolvedAccount } from '../shared';
 
-export const INITIALIZE_SNAPSHOT_DISCRIMINATOR = 7;
+export const INITIALIZE_SNAPSHOT_DISCRIMINATOR = 6;
 
 export function getInitializeSnapshotDiscriminatorBytes() {
   return getU8Encoder().encode(INITIALIZE_SNAPSHOT_DISCRIMINATOR);
