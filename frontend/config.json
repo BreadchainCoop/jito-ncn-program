@@ -1,0 +1,9 @@
+{
+  "_note": "Populated by the devnet deploy (parity-plan Phase 5). Empty fields = the page shows its honest 'network not deployed yet' state.",
+  "rpcUrl": "",
+  "ncnProgramId": "",
+  "settlementProgramId": "",
+  "statePda": "",
+  "commitment": "confirmed",
+  "cluster": "devnet"
+}
