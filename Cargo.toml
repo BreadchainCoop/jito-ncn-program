@@ -4,6 +4,7 @@ members = [
   "clients/rust/ncn_program",
   "core",
   "integration_tests",
+  "llm_payload_producer",
   "program",
   "shank_cli",
   "commonware-avs-router-solana",
