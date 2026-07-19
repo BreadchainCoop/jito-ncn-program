@@ -237,6 +237,9 @@ impl G1Point {
     }
 
     /// Returns the negation of the point: (x, -y mod p)
+    // UBig arithmetic cannot overflow, and y < p for any valid on-curve point,
+    // so p - y cannot underflow; the pad is bounded by the 32-byte coordinate.
+    #[allow(clippy::arithmetic_side_effects)]
     pub fn negate(&self) -> Self {
         // x: first 32 bytes, y: last 32 bytes
         let x_bytes = &self.0[0..32];

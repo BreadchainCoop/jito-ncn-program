@@ -5,7 +5,6 @@ use jito_jsm_core::{
 };
 use jito_restaking_core::{ncn::Ncn, ncn_operator_state::NcnOperatorState, operator::Operator};
 use ncn_program_core::{
-    utils::pop_message_digest,
     account_payer::AccountPayer,
     config::Config,
     constants::{G1_COMPRESSED_POINT_SIZE, G2_COMPRESSED_POINT_SIZE, MAX_OPERATORS},
@@ -15,6 +14,7 @@ use ncn_program_core::{
     loaders::load_ncn_epoch,
     ncn_operator_account::NCNOperatorAccount,
     snapshot::{OperatorSnapshot, Snapshot},
+    utils::pop_message_digest,
 };
 use solana_program::{
     account_info::AccountInfo,

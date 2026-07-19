@@ -12,6 +12,8 @@ use solana_bn254::compression::prelude::alt_bn128_g1_decompress;
 use solana_program::{account_info::AccountInfo, msg, program_error::ProgramError, pubkey::Pubkey};
 use spl_math::precise_number::PreciseNumber;
 
+use num::CheckedAdd;
+
 use crate::{
     constants::{G1_COMPRESSED_POINT_SIZE, MAX_OPERATORS, MAX_VAULTS},
     discriminators::Discriminators,
@@ -174,7 +176,9 @@ impl Snapshot {
             let total_aggregated_g1_pubkey_point =
                 G1Point::try_from(&G1CompressedPoint(self.total_aggregated_g1_pubkey))?;
             let pk_point = G1Point::try_from(&G1CompressedPoint(*g1_pubkey))?;
-            let new_point = total_aggregated_g1_pubkey_point + pk_point;
+            let new_point = total_aggregated_g1_pubkey_point
+                .checked_add(&pk_point)
+                .ok_or(NCNProgramError::AltBN128AddError)?;
             let compressed = G1CompressedPoint::try_from(new_point)?;
             self.total_aggregated_g1_pubkey = compressed.0;
         }
@@ -190,7 +194,9 @@ impl Snapshot {
         let total_aggregated_g1_pubkey_point =
             G1Point::try_from(&G1CompressedPoint(self.total_aggregated_g1_pubkey))?;
         let pk_point = G1Point::try_from(&G1CompressedPoint(*g1_pubkey))?;
-        let new_point = total_aggregated_g1_pubkey_point + pk_point.negate();
+        let new_point = total_aggregated_g1_pubkey_point
+            .checked_add(&pk_point.negate())
+            .ok_or(NCNProgramError::AltBN128AddError)?;
         let compressed = G1CompressedPoint::try_from(new_point)?;
         self.total_aggregated_g1_pubkey = compressed.0;
         Ok(())
@@ -220,7 +226,7 @@ impl Snapshot {
                 self.total_aggregated_g1_pubkey = *operator_g1_pubkey;
                 // Now update the operator's pubkey
                 if let Some(operator_snapshot) = self.find_mut_operator_snapshot(operator) {
-                    operator_snapshot.update_g1_pubkey(&operator_g1_pubkey);
+                    operator_snapshot.update_g1_pubkey(operator_g1_pubkey);
                 }
             }
             count if count < MAX_OPERATORS as u64 => {
@@ -234,7 +240,7 @@ impl Snapshot {
 
                     // Now update the operator's pubkey
                     if let Some(operator_snapshot) = self.find_mut_operator_snapshot(operator) {
-                        operator_snapshot.update_g1_pubkey(&operator_g1_pubkey);
+                        operator_snapshot.update_g1_pubkey(operator_g1_pubkey);
                     }
 
                     // Add the new pubkey to the total aggregated pubkey
@@ -468,7 +474,9 @@ impl OperatorSnapshot {
         current_epoch: u64,
         snapshot_epoch: u64,
     ) -> Result<bool, NCNProgramError> {
-        let epoch_diff = current_epoch - snapshot_epoch;
+        let epoch_diff = current_epoch
+            .checked_sub(snapshot_epoch)
+            .ok_or(NCNProgramError::ArithmeticUnderflowError)?;
         match epoch_diff {
             0 => Ok(self.has_minimum_stake.into()),
             1 => Ok(self.has_minimum_stake_next_epoch.into()),
@@ -1024,7 +1032,7 @@ mod tests {
         {
             // Verify the operator snapshot was added using its index
             let retrieved_snapshot = snapshot.get_operator_snapshot(0);
-            let test = snapshot.operator_snapshots[0];
+            let _ = snapshot.operator_snapshots[0];
             assert!(retrieved_snapshot.is_some());
             assert_eq!(retrieved_snapshot.unwrap().operator(), &operator_pubkey);
         }

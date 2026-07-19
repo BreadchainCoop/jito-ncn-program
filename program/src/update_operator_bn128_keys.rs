@@ -1,7 +1,6 @@
 use jito_bytemuck::AccountDeserialize;
 use jito_restaking_core::{ncn::Ncn, operator::Operator};
 use ncn_program_core::{
-    utils::pop_message_digest,
     config::Config,
     constants::{G1_COMPRESSED_POINT_SIZE, G2_COMPRESSED_POINT_SIZE},
     error::NCNProgramError,
@@ -10,6 +9,7 @@ use ncn_program_core::{
     ncn_operator_account::NCNOperatorAccount,
     schemes::sha256_normalized::Sha256Normalized,
     snapshot::Snapshot,
+    utils::pop_message_digest,
 };
 use solana_program::{
     account_info::AccountInfo,

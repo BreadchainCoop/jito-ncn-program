@@ -9,7 +9,6 @@ use ark_bn254::Fr;
 use ark_ec::AffineRepr;
 #[cfg(not(target_os = "solana"))]
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-#[cfg(not(target_os = "solana"))]
 use num::CheckedAdd;
 
 use solana_bn254::{
@@ -77,8 +76,12 @@ impl G2Point {
         let scaled_g1_generator = G1Point::from(G1_GENERATOR).mul(alpha)?;
         let scaled_g1_pubkey = g1_pubkey_point.mul(alpha)?;
 
-        let msg_hash_plus_scaled_g1_generator = G1Point::from(message_hash) + scaled_g1_generator;
-        let signature_plus_scaled_g1 = signature + scaled_g1_pubkey;
+        let msg_hash_plus_scaled_g1_generator = G1Point::from(message_hash)
+            .checked_add(&scaled_g1_generator)
+            .ok_or(NCNProgramError::AltBN128AddError)?;
+        let signature_plus_scaled_g1 = signature
+            .checked_add(&scaled_g1_pubkey)
+            .ok_or(NCNProgramError::AltBN128AddError)?;
 
         let mut input = [0u8; 384];
 
@@ -118,14 +121,17 @@ impl G2Point {
         apk1: G1Point,
     ) -> Result<(), NCNProgramError> {
         let message_hash = H::try_hash_to_curve(digest)?.0;
-        let alpha =
-            compute_certificate_gamma(&digest.0, &apk1.0, &self.0, &aggregated_signature.0);
+        let alpha = compute_certificate_gamma(&digest.0, &apk1.0, &self.0, &aggregated_signature.0);
 
         let scaled_g1 = G1Point::from(G1_GENERATOR).mul(alpha)?;
         let scaled_aggregated_g1 = apk1.mul(alpha)?;
 
-        let msg_hash_plus_g1 = G1Point::from(message_hash) + scaled_g1;
-        let aggregated_signature_plus_aggregated_g1 = aggregated_signature + scaled_aggregated_g1;
+        let msg_hash_plus_g1 = G1Point::from(message_hash)
+            .checked_add(&scaled_g1)
+            .ok_or(NCNProgramError::AltBN128AddError)?;
+        let aggregated_signature_plus_aggregated_g1 = aggregated_signature
+            .checked_add(&scaled_aggregated_g1)
+            .ok_or(NCNProgramError::AltBN128AddError)?;
 
         let mut input = [0u8; 384];
 
@@ -166,6 +172,8 @@ impl core::ops::Add for G2Point {
 
 #[cfg(not(target_os = "solana"))]
 impl CheckedAdd for G2Point {
+    // ark-bn254 group addition is total: no panics, no overflow (host-only)
+    #[allow(clippy::arithmetic_side_effects)]
     fn checked_add(&self, rhs: &Self) -> Option<Self> {
         let result = (|| -> Result<Self, NCNProgramError> {
             let mut s0 = G2CompressedPoint::try_from(self)?.0;
@@ -228,6 +236,8 @@ impl G2CompressedPoint {
 impl TryFrom<&PrivKey> for G2CompressedPoint {
     type Error = NCNProgramError;
 
+    // ark-bn254 scalar multiplication is total: no panics, no overflow (host-only)
+    #[allow(clippy::arithmetic_side_effects)]
     fn try_from(value: &PrivKey) -> Result<G2CompressedPoint, Self::Error> {
         let mut pk = value.0;
 

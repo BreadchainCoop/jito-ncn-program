@@ -52,10 +52,13 @@ pub fn can_operator_vote(operator_snapshot: OperatorSnapshot) -> bool {
 /// Reduces a 32-byte big-endian hash modulo the BN254 group order Fr,
 /// returning a 32-byte big-endian scalar.
 fn reduce_mod_fr(hash: &[u8; 32]) -> [u8; 32] {
+    // UBig rem by the nonzero group-order constant cannot fail
+    #[allow(clippy::arithmetic_side_effects)]
     let reduced = UBig::from_be_bytes(hash) % FR_MODULUS.clone();
     let mut out = [0u8; 32];
     let be = reduced.to_be_bytes();
-    out[32 - be.len()..].copy_from_slice(&be);
+    let offset = 32usize.saturating_sub(be.len());
+    out[offset..].copy_from_slice(&be);
     out
 }
 
@@ -119,16 +122,16 @@ pub fn pop_message_digest(
 pub fn create_signer_bitmap(non_signer_indices: &[usize], total_operators: usize) -> Vec<u8> {
     // Calculate the number of bytes needed to represent all operators (1 bit per operator).
     // Add 7 before dividing by 8 to ensure rounding up for any remainder bits.
-    let bitmap_size = (total_operators + 7) / 8;
+    let bitmap_size = total_operators.div_ceil(8);
     // Initialize the bitmap with all bits set to 1 (all operators have signed).
     let mut bitmap = vec![255u8; bitmap_size];
 
     // Iterate over each index in non_signer_indices, setting the corresponding bit in the bitmap.
     for &index in non_signer_indices {
         // Determine which byte in the bitmap this operator's bit falls into.
-        let byte_index = index / 8;
+        let byte_index = index >> 3;
         // Determine the bit position within the byte (0 = least significant bit).
-        let bit_index = index % 8;
+        let bit_index = index & 7;
         // Only set the bit if the byte_index is within the bitmap bounds.
         if byte_index < bitmap.len() {
             // Set the bit at bit_index in the byte at byte_index to 0.
@@ -167,7 +170,10 @@ mod tests {
                 assert_eq!(raw, gamma, "in-range hash must pass through unchanged");
             }
         }
-        assert!(exercised_reduction, "sweep never exercised the reduction path");
+        assert!(
+            exercised_reduction,
+            "sweep never exercised the reduction path"
+        );
     }
 
     #[test]
@@ -177,10 +183,22 @@ mod tests {
         let apk2 = [3u8; 128];
         let sigma = [4u8; 64];
         let base = compute_certificate_gamma(&digest, &apk1, &apk2, &sigma);
-        assert_ne!(base, compute_certificate_gamma(&[9u8; 32], &apk1, &apk2, &sigma));
-        assert_ne!(base, compute_certificate_gamma(&digest, &[9u8; 64], &apk2, &sigma));
-        assert_ne!(base, compute_certificate_gamma(&digest, &apk1, &[9u8; 128], &sigma));
-        assert_ne!(base, compute_certificate_gamma(&digest, &apk1, &apk2, &[9u8; 64]));
+        assert_ne!(
+            base,
+            compute_certificate_gamma(&[9u8; 32], &apk1, &apk2, &sigma)
+        );
+        assert_ne!(
+            base,
+            compute_certificate_gamma(&digest, &[9u8; 64], &apk2, &sigma)
+        );
+        assert_ne!(
+            base,
+            compute_certificate_gamma(&digest, &apk1, &[9u8; 128], &sigma)
+        );
+        assert_ne!(
+            base,
+            compute_certificate_gamma(&digest, &apk1, &apk2, &[9u8; 64])
+        );
     }
 
     #[test]
@@ -204,7 +222,10 @@ mod tests {
         let g1 = [5u8; 32];
         let base = pop_message_digest(&ncn, &operator, &g1);
         assert_eq!(base, pop_message_digest(&ncn, &operator, &g1));
-        assert_ne!(base, pop_message_digest(&Pubkey::new_unique(), &operator, &g1));
+        assert_ne!(
+            base,
+            pop_message_digest(&Pubkey::new_unique(), &operator, &g1)
+        );
         assert_ne!(base, pop_message_digest(&ncn, &Pubkey::new_unique(), &g1));
         assert_ne!(base, pop_message_digest(&ncn, &operator, &[6u8; 32]));
     }

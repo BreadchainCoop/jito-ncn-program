@@ -258,7 +258,7 @@ impl CliHandler {
             }
 
             // Instructions
-            ProgramCommand::CreateVaultRegistry {} => create_vault_registry(self).await,
+            ProgramCommand::CreateVaultRegistry => create_vault_registry(self).await,
 
             ProgramCommand::CreateVoteCounter {} => create_vote_counter(self).await,
 
@@ -330,7 +330,7 @@ impl CliHandler {
                 update_operator_ip_port(self, &operator, &ip_address, port).await
             }
 
-            ProgramCommand::CreateSnapshot {} => create_snapshot(self, self.epoch).await,
+            ProgramCommand::CreateSnapshot => create_snapshot(self, self.epoch).await,
             ProgramCommand::SnapshotVaultOperatorDelegation { operator } => {
                 let operator = Pubkey::from_str(&operator)
                     .map_err(|e| anyhow!("Error parsing operator: {}", e))?;
@@ -417,7 +417,7 @@ impl CliHandler {
             }
 
             // Getters
-            ProgramCommand::GetNcn {} => {
+            ProgramCommand::GetNcn => {
                 let ncn = get_ncn(self).await?;
                 info!("NCN: {:?}", ncn);
                 Ok(())
@@ -449,18 +449,18 @@ impl CliHandler {
                 info!("Vault Operator Delegation: {:?}", vault_operator_delegation);
                 Ok(())
             }
-            ProgramCommand::GetAllOperatorsInNcn {} => {
+            ProgramCommand::GetAllOperatorsInNcn => {
                 let operators = get_all_operators_in_ncn(self).await?;
 
                 info!("Operators: {:?}", operators);
                 Ok(())
             }
-            ProgramCommand::GetAllVaultsInNcn {} => {
+            ProgramCommand::GetAllVaultsInNcn => {
                 let vaults = get_all_vaults_in_ncn(self).await?;
                 info!("Vaults: {:?}", vaults);
                 Ok(())
             }
-            ProgramCommand::GetAllNCNOperatorAccounts {} => {
+            ProgramCommand::GetAllNCNOperatorAccounts => {
                 let ncn_operator_accounts = get_all_ncn_operator_accounts(self).await?;
 
                 info!(
@@ -481,7 +481,7 @@ impl CliHandler {
                 }
                 Ok(())
             }
-            ProgramCommand::GetAllTickets {} => {
+            ProgramCommand::GetAllTickets => {
                 let all_tickets = get_all_tickets(self).await?;
 
                 for tickets in all_tickets.iter() {
@@ -490,12 +490,12 @@ impl CliHandler {
 
                 Ok(())
             }
-            ProgramCommand::GetNCNProgramConfig {} => {
+            ProgramCommand::GetNCNProgramConfig => {
                 let config = get_ncn_program_config(self).await?;
                 info!("{}", config);
                 Ok(())
             }
-            ProgramCommand::GetVaultRegistry {} => {
+            ProgramCommand::GetVaultRegistry => {
                 let vault_registry = get_vault_registry(self).await?;
                 info!("{}", vault_registry);
                 Ok(())
@@ -507,7 +507,7 @@ impl CliHandler {
                 Ok(())
             }
 
-            ProgramCommand::GetSnapshot {} => {
+            ProgramCommand::GetSnapshot => {
                 let snapshot = get_snapshot(self, self.epoch).await?;
                 info!("{}", snapshot);
                 Ok(())
@@ -519,7 +519,7 @@ impl CliHandler {
                 info!("{}", operator_snapshot);
                 Ok(())
             }
-            ProgramCommand::GetAccountPayer {} => {
+            ProgramCommand::GetAccountPayer => {
                 let account_payer = get_account_payer(self).await?;
                 let (account_payer_address, _, _) =
                     AccountPayer::find_program_address(&self.ncn_program_id, self.ncn()?);
@@ -530,7 +530,7 @@ impl CliHandler {
                 );
                 Ok(())
             }
-            ProgramCommand::GetTotalEpochRentCost {} => {
+            ProgramCommand::GetTotalEpochRentCost => {
                 let total_epoch_rent_cost = get_total_epoch_rent_cost(self).await?;
                 info!(
                     "\n\n--- Total Epoch Rent Cost ---\nCost: {}\n",
@@ -539,7 +539,7 @@ impl CliHandler {
                 Ok(())
             }
 
-            ProgramCommand::GetOperatorStakes {} => {
+            ProgramCommand::GetOperatorStakes => {
                 // Get snapshot for total stake
                 let snapshot = get_snapshot(self, self.epoch).await?;
 
@@ -571,7 +571,7 @@ impl CliHandler {
                 Ok(())
             }
 
-            ProgramCommand::GetVaultStakes {} => {
+            ProgramCommand::GetVaultStakes => {
                 let operators = get_all_operators_in_ncn(self).await?;
                 let snapshot = get_snapshot(self, self.epoch).await?;
                 let vault_stakes: HashMap<Pubkey, u128> = HashMap::new();
@@ -608,7 +608,7 @@ impl CliHandler {
                 Ok(())
             }
 
-            ProgramCommand::GetVaultOperatorStakes {} => {
+            ProgramCommand::GetVaultOperatorStakes => {
                 let operators = get_all_operators_in_ncn(self).await?;
                 let snapshot = get_snapshot(self, self.epoch).await?;
                 let vault_operator_stakes: HashMap<Pubkey, HashMap<Pubkey, u128>> = HashMap::new();
@@ -674,7 +674,7 @@ impl CliHandler {
 
                 Ok(())
             }
-            ProgramCommand::FullUpdateVault {} => {
+            ProgramCommand::FullUpdateVault => {
                 full_vault_update(self, self.vault()).await?;
                 Ok(())
             }

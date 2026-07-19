@@ -911,7 +911,7 @@ pub async fn get_or_create_snapshot(handler: &CliHandler, epoch: u64) -> Result<
 
     if get_account(handler, &snapshot)
         .await?
-        .map_or(true, |snapshot| snapshot.data.len() < Snapshot::SIZE)
+        .is_none_or(|snapshot| snapshot.data.len() < Snapshot::SIZE)
     {
         create_snapshot(handler, epoch).await?;
         check_created(handler, &snapshot).await?;

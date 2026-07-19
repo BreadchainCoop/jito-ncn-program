@@ -30,8 +30,7 @@ impl HashToCurve for Sha256Normalized {
         (0..=254u8)
             .find_map(|n: u8| {
                 // Domain ‖ digest ‖ counter — fixed-length, domain-separated preimage
-                let hash =
-                    solana_nostd_sha256::hashv(&[HASH_TO_CURVE_DOMAIN, &digest.0, &[n]]);
+                let hash = solana_nostd_sha256::hashv(&[HASH_TO_CURVE_DOMAIN, &digest.0, &[n]]);
 
                 // Convert hash to a Ubig for Bigint operations
                 let hash_ubig = UBig::from_be_bytes(&hash);
@@ -42,13 +41,16 @@ impl HashToCurve for Sha256Normalized {
                     return None;
                 }
 
+                // UBig rem by the nonzero field-modulus constant cannot fail
+                #[allow(clippy::arithmetic_side_effects)]
                 let modulus_ubig = hash_ubig % &MODULUS;
 
                 // Fixed 32-byte big-endian x-candidate (UBig::to_be_bytes is
                 // minimal-length; a leading-zero x must not shrink the buffer)
                 let mut x_bytes = [0u8; 32];
                 let be = modulus_ubig.to_be_bytes();
-                x_bytes[32 - be.len()..].copy_from_slice(&be);
+                let offset = 32usize.saturating_sub(be.len());
+                x_bytes[offset..].copy_from_slice(&be);
 
                 // Decompress the point
                 match alt_bn128_g1_decompress(&x_bytes) {

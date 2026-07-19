@@ -39,3 +39,9 @@ solana-security-txt = { workspace = true }
 
 [dev-dependencies]
 assert_matches = { workspace = true }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = [
+  'cfg(target_os, values("solana"))',
+  'cfg(feature, values("frozen-abi", "no-entrypoint", "custom-heap", "custom-panic"))',
+] }

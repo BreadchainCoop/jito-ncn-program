@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+  # Agave (Solana) toolchain — keep in the same 4.1.x family as local dev
+  # (solana-cli 4.1.1 / cargo-build-sbf 4.1.0).
+  AGAVE_VERSION: v4.1.1
+  # Pinned jito-foundation/restaking release tag the fixture programs are built
+  # from. Must match the default in scripts/build_fixtures.sh (the script honors
+  # this env var, and the fixture cache key below is derived from it).
+  JITO_RESTAKING_TAG: v1.0.0-cli
+
+jobs:
+  lint:
+    name: lint (fmt + clippy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      # The workspace lists commonware-avs-router-solana as a member, so cargo
+      # cannot load the workspace manifest without it. .gitmodules pins an SSH
+      # URL; rewrite to https so no deploy key is needed (the repo is public).
+      - name: Check out workspace-member submodule
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git submodule update --init commonware-avs-router-solana
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      # The tree is formatted with style edition 2021 (the workspace edition is
+      # 2024, which would otherwise flip rustfmt to 2024 import ordering), and
+      # the commonware-avs-router-solana submodule is formatted 2024-style, so
+      # fmt runs on the explicit list of first-party packages.
+      - name: cargo fmt
+        run: >
+          cargo fmt --check
+          -p ncn-program
+          -p ncn-program-core
+          -p ncn-program-bls-cli
+          -p ncn-program-client
+          -p ncn-program-shank-cli
+          -p ncn-program-integration-tests
+          -- --style-edition 2021
+
+      # On-chain crates get the CU-safety wall (panics on-chain = program
+      # aborts); off-chain tooling is gated on -D warnings only.
+      - name: cargo clippy (on-chain, strict)
+        run: >
+          cargo clippy -p ncn-program-core -p ncn-program --all-targets
+          -- -D warnings -D clippy::arithmetic_side_effects -D clippy::integer_division
+
+      - name: cargo clippy (off-chain)
+        run: >
+          cargo clippy --workspace --exclude ncn-program-bls-router
+          --exclude ncn-program-core --exclude ncn-program --all-targets
+          -- -D warnings
+
+  test:
+    name: build + integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out workspace-member submodule
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git submodule update --init commonware-avs-router-solana
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Agave toolchain
+        run: |
+          sh -c "$(curl -sSfL "https://release.anza.xyz/${AGAVE_VERSION}/install")"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+
+      - name: Cache jito fixture clone + build
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/jito-restaking-fixtures
+          key: jito-fixtures-${{ runner.os }}-${{ env.JITO_RESTAKING_TAG }}-agave-${{ env.AGAVE_VERSION }}
+
+      # Build the jito restaking + vault fixture programs from source (pinned
+      # tag) instead of trusting the checked-in .so binaries.
+      - name: Build fixture programs from source
+        run: ./scripts/build_fixtures.sh
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build NCN program (SBF)
+        run: cargo build-sbf --manifest-path program/Cargo.toml --sbf-out-dir integration_tests/tests/fixtures
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: Run integration tests
+        run: SBF_OUT_DIR=integration_tests/tests/fixtures cargo nextest run -p ncn-program-integration-tests

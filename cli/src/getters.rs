@@ -935,10 +935,9 @@ impl NcnTickets {
             .unwrap()
             .delegation_state
             .total_security()
+            && total_security > 0
         {
-            if total_security > 0 {
-                return Self::STAKE;
-            }
+            return Self::STAKE;
         }
 
         Self::NO_STAKE

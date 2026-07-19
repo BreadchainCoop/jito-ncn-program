@@ -89,10 +89,7 @@ pub fn process_cast_vote(
     msg!("Current slot: {}", slot);
 
     // Check bitmap size
-    let required_bitmap_bytes = (operators_registered
-        .checked_add(7)
-        .ok_or(ProgramError::ArithmeticOverflow)?)
-        / 8;
+    let required_bitmap_bytes = operators_registered.div_ceil(8);
     if operators_signature_bitmap.len() as u64 != required_bitmap_bytes {
         msg!("Invalid bitmap size");
         return Err(NCNProgramError::InvalidInputLength.into());
@@ -112,8 +109,8 @@ pub fn process_cast_vote(
             break;
         }
 
-        let byte_index = i / 8;
-        let bit_index = i % 8;
+        let byte_index = i >> 3;
+        let bit_index = i & 7;
         let signed = (operators_signature_bitmap[byte_index] >> bit_index) & 1 == 1;
 
         if signed {
@@ -153,8 +150,13 @@ pub fn process_cast_vote(
         }
     }
 
-    // If non_signers_count is more than 1/3 of registered operators, throw an error because quorum didn't meet
-    if non_signers_count > operators_registered / 3 {
+    // If non_signers_count is more than 1/3 of registered operators, throw an
+    // error because quorum didn't meet (3x > n  <=>  x > floor(n/3))
+    if non_signers_count
+        .checked_mul(3)
+        .ok_or(ProgramError::ArithmeticOverflow)?
+        > operators_registered
+    {
         msg!(
             "Quorum not met: non-signers count ({}) exceeds 1/3 of registered operators ({})",
             non_signers_count,
@@ -199,11 +201,7 @@ pub fn process_cast_vote(
         // One Pairing attempt
         msg!("Verifying aggregate signature one pairing");
         aggregated_g2_point
-            .verify_aggregated_signature::<Sha256Normalized>(
-                signature,
-                &digest,
-                apk1,
-            )
+            .verify_aggregated_signature::<Sha256Normalized>(signature, &digest, apk1)
             .map_err(|_| NCNProgramError::SignatureVerificationFailed)?;
     }
 

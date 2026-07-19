@@ -336,7 +336,7 @@ impl fmt::Display for Args {
         writeln!(f, "\n◎  Solana Settings:")?;
         writeln!(f, "  • Keypair Path:  {}", self.keypair_path.as_deref().unwrap_or("Not Set"))?;
         writeln!(f, "  • NCN:  {}", self.ncn.as_deref().unwrap_or("Not Set"))?;
-        writeln!(f, "  • Epoch: {}", if self.epoch.is_some() { format!("{}", self.epoch.unwrap()) } else { "Current".to_string() })?;
+        writeln!(f, "  • Epoch: {}", self.epoch.map_or_else(|| "Current".to_string(), |e| e.to_string()))?;
 
         // Optional Settings
         writeln!(f, "\n⚙️  Additional Settings:")?;
