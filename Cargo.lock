@@ -10109,6 +10109,55 @@ dependencies = [
 ]
 
 [[package]]
+name = "settlement-core"
+version = "0.0.1"
+dependencies = [
+ "borsh 0.10.4",
+ "bytemuck",
+ "hex",
+ "jito-bytemuck",
+ "ncn-program-core",
+ "shank",
+ "solana-nostd-sha256",
+ "solana-program",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "settlement-program"
+version = "0.0.1"
+dependencies = [
+ "anchor-lang",
+ "borsh 0.10.4",
+ "bytemuck",
+ "jito-bytemuck",
+ "jito-jsm-core",
+ "jito-restaking-core",
+ "jito-restaking-program",
+ "jito-restaking-sdk",
+ "jito-vault-core",
+ "jito-vault-program",
+ "jito-vault-sdk",
+ "log",
+ "ncn-program",
+ "ncn-program-client",
+ "ncn-program-core",
+ "num 0.4.3",
+ "rand 0.8.5",
+ "settlement-core",
+ "shank",
+ "solana-nostd-sha256",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+ "solana-security-txt",
+ "spl-associated-token-account 6.0.0",
+ "spl-token 7.0.0",
+ "thiserror 1.0.69",
+ "tokio",
+]
+
+[[package]]
 name = "sha1"
 version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
