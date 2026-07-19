@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>D-MSG &amp; Stateless Verify — Jito NCN design decision</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b24; --panel2:#1c2230; --ink:#e8ecf3; --dim:#9aa7bd;
+    --teal:#3ecfb2; --red:#ff7a6e; --amber:#ffc266; --blue:#6ea8ff; --line:#2a3346;
+    --mono:'SF Mono',ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--bg);color:var(--ink);
+    font:400 clamp(15px,1.35vw,19px)/1.55 -apple-system,'Segoe UI',Inter,Roboto,sans-serif;}
+  .deck{height:100%;position:relative;overflow:hidden}
+  .slide{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;
+    padding:5vh 8vw;gap:1.2em}
+  .slide.active{display:flex;animation:in .35s ease}
+  @keyframes in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .kicker{font:600 .72em/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--teal)}
+  .kicker.warn{color:var(--red)}
+  .kicker.mid{color:var(--amber)}
+  h1{font-size:2.4em;line-height:1.15;font-weight:750;letter-spacing:-.02em}
+  h2{font-size:1.75em;line-height:1.2;font-weight:700;letter-spacing:-.015em}
+  .sub{color:var(--dim);font-size:1.05em;max-width:34em}
+  ul{list-style:none;display:flex;flex-direction:column;gap:.55em;max-width:44em}
+  ul li{padding-left:1.35em;position:relative}
+  ul li::before{content:'';position:absolute;left:.1em;top:.62em;width:.45em;height:.45em;
+    border-radius:50%;background:var(--teal)}
+  .warn ul li::before{background:var(--red)}
+  .mid ul li::before{background:var(--amber)}
+  b{font-weight:650;color:#fff}
+  code{font:.86em var(--mono);background:var(--panel2);border:1px solid var(--line);
+    border-radius:6px;padding:.1em .45em;color:#cfe3ff;white-space:nowrap}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:2.2em;align-items:start;max-width:62em}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:1.1em 1.3em}
+  .card h3{font-size:1em;margin-bottom:.5em}
+  .card.good h3{color:var(--teal)} .card.bad h3{color:var(--red)} .card.mid h3{color:var(--amber)}
+  .card ul{gap:.4em;font-size:.92em}
+  svg{max-width:100%;height:auto}
+  .diagram{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:1em 1.4em;max-width:60em}
+  .hud{position:fixed;right:1.2em;bottom:1em;color:var(--dim);font:500 .7em var(--mono);
+    letter-spacing:.08em;user-select:none;z-index:5}
+  .hint{position:fixed;left:1.4em;bottom:1em;color:var(--dim);font:500 .7em var(--mono);opacity:.7;z-index:5}
+  .bar{position:fixed;top:0;left:0;height:3px;background:var(--teal);transition:width .25s ease;z-index:5}
+  .tag{display:inline-block;font:600 .68em var(--mono);letter-spacing:.05em;border-radius:999px;
+    padding:.25em .8em;border:1px solid var(--line);color:var(--dim);margin-right:.5em}
+  .tag.ok{color:var(--teal);border-color:var(--teal)}
+  .tag.no{color:var(--red);border-color:var(--red)}
+  .big{font-size:1.25em;max-width:38em}
+  .quote{border-left:3px solid var(--teal);padding:.4em 0 .4em 1em;color:var(--dim);max-width:40em}
+</style>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="deck" id="deck">
+
+<!-- 1 · title -->
+<section class="slide active">
+  <div class="kicker">Jito NCN backend · design decision D-MSG · sign-off before Phase 1</div>
+  <h1>What does the committee sign,<br>and where does replay protection live?</h1>
+  <p class="sub">The <b>stateless verify / D-MSG</b> decision: why the Solana NCN must verify certificates the way EigenLayer's <code>checkSignatures</code> does — as a pure check — and why the replay nonce belongs to each consumer, not to the NCN.</p>
+  <p class="sub" style="font-size:.85em">→ / ← or click to navigate</p>
+</section>
+
+<!-- 2 · EVM reference -->
+<section class="slide">
+  <div class="kicker">The reference system</div>
+  <h2>How Gas Killer settles on Ethereum today</h2>
+  <div class="diagram">
+  <svg viewBox="0 0 980 240" role="img" aria-label="EVM settlement flow">
+    <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0L8,4L0,8z" fill="#9aa7bd"/></marker></defs>
+    <g font-family="Menlo,monospace" font-size="15" fill="#e8ecf3">
+      <rect x="10" y="40" width="170" height="64" rx="10" fill="#1c2230" stroke="#2a3346"/>
+      <text x="95" y="67" text-anchor="middle">off-chain sim</text>
+      <text x="95" y="88" text-anchor="middle" fill="#9aa7bd" font-size="12">UnboundedV1 · 2^40</text>
+      <rect x="235" y="40" width="220" height="64" rx="10" fill="#1c2230" stroke="#2a3346"/>
+      <text x="345" y="67" text-anchor="middle">digest = sha256(</text>
+      <text x="345" y="88" text-anchor="middle" fill="#ffc266" font-size="12">transitionIndex, this, sel, diff)</text>
+      <rect x="510" y="40" width="170" height="64" rx="10" fill="#1c2230" stroke="#2a3346"/>
+      <text x="595" y="67" text-anchor="middle">committee</text>
+      <text x="595" y="88" text-anchor="middle" fill="#9aa7bd" font-size="12">BLS-signs digest</text>
+      <rect x="735" y="16" width="235" height="112" rx="10" fill="#14202a" stroke="#3ecfb2"/>
+      <text x="852" y="44" text-anchor="middle" fill="#3ecfb2">verifyAndUpdate</text>
+      <text x="852" y="68" text-anchor="middle" font-size="12">checkSignatures(digest, cert)</text>
+      <text x="852" y="87" text-anchor="middle" font-size="12" fill="#9aa7bd">require idx == nonce</text>
+      <text x="852" y="106" text-anchor="middle" font-size="12" fill="#9aa7bd">1 SSTORE + events</text>
+      <line x1="180" y1="72" x2="228" y2="72" stroke="#9aa7bd" stroke-width="1.6" marker-end="url(#a)"/>
+      <line x1="455" y1="72" x2="503" y2="72" stroke="#9aa7bd" stroke-width="1.6" marker-end="url(#a)"/>
+      <line x1="680" y1="72" x2="728" y2="72" stroke="#9aa7bd" stroke-width="1.6" marker-end="url(#a)"/>
+      <rect x="735" y="168" width="235" height="52" rx="10" fill="#1c2230" stroke="#2a3346"/>
+      <text x="852" y="190" text-anchor="middle" font-size="13">StateTracker nonce</text>
+      <text x="852" y="208" text-anchor="middle" font-size="12" fill="#9aa7bd">transition_count += 1</text>
+      <line x1="852" y1="128" x2="852" y2="162" stroke="#9aa7bd" stroke-width="1.6" marker-end="url(#a)"/>
+    </g>
+  </svg>
+  </div>
+  <ul>
+    <li><code>checkSignatures</code> is EigenLayer's <b>view function</b> — the only EigenLayer runtime primitive the SDK consumes.</li>
+    <li>The consumer contract owns everything stateful: the transition nonce, the commitment slot, the events.</li>
+  </ul>
+</section>
+
+<!-- 3 · the property -->
+<section class="slide">
+  <div class="kicker">The property that matters</div>
+  <h2>Verification is stateless; certificates are facts</h2>
+  <ul class="big">
+    <li>A certificate states a fact: <b>“quorum signed digest D against stake snapshot S.”</b> Facts don't expire when read — <code>checkSignatures</code> mutates nothing and can be called forever.</li>
+    <li>Replay protection is <b>not the verifier's job</b>. The consumer binds its own <code>transitionIndex</code> <b>inside the digest preimage</b>, so each certificate is usable for exactly one state transition of that consumer.</li>
+    <li>Any number of consumers share one verifier <b>with zero coupling</b> — none of them can invalidate another's pending certificate.</li>
+  </ul>
+</section>
+
+<!-- 4 · what drafts did -->
+<section class="slide warn">
+  <div class="kicker warn">The drafts diverge here</div>
+  <h2>Both Solana drafts made the verifier stateful</h2>
+  <div class="cols">
+    <div class="card bad">
+      <h3>Unboxed · CastVote</h3>
+      <ul>
+        <li>The signed message <b>is the global VoteCounter value</b>.</li>
+        <li>On success: <code>counter += 1</code> — verification mutates NCN state.</li>
+      </ul>
+    </div>
+    <div class="card bad">
+      <h3>jito-bls-ncn · Vote</h3>
+      <ul>
+        <li>Message bound to <code>consensus_count</code>; Consensus PDA mutated on success.</li>
+        <li>Same shape: one global, ordered vote stream per NCN.</li>
+      </ul>
+    </div>
+  </div>
+  <p class="sub">In both drafts the NCN stopped being a <b>verifier</b> and became a <b>sequencer</b>: every settlement, from every consumer, must pass through one ordered counter.</p>
+</section>
+
+<!-- 5 · problem 1 -->
+<section class="slide warn">
+  <div class="kicker warn">Problem 1 · concurrency</div>
+  <h2>One counter PDA = one write lock for everyone</h2>
+  <div class="diagram">
+  <svg viewBox="0 0 940 210" role="img" aria-label="write lock bottleneck">
+    <defs><marker id="b" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0L8,4L0,8z" fill="#ff7a6e"/></marker></defs>
+    <g font-family="Menlo,monospace" font-size="14" fill="#e8ecf3">
+      <rect x="10" y="10" width="200" height="46" rx="9" fill="#1c2230" stroke="#2a3346"/><text x="110" y="38" text-anchor="middle">LLM consumer</text>
+      <rect x="10" y="82" width="200" height="46" rx="9" fill="#1c2230" stroke="#2a3346"/><text x="110" y="110" text-anchor="middle">CLOB consumer</text>
+      <rect x="10" y="154" width="200" height="46" rx="9" fill="#1c2230" stroke="#2a3346"/><text x="110" y="182" text-anchor="middle">ArraySummation</text>
+      <rect x="420" y="82" width="230" height="46" rx="9" fill="#241a1c" stroke="#ff7a6e"/>
+      <text x="535" y="105" text-anchor="middle" fill="#ff7a6e">global VoteCounter PDA</text>
+      <text x="535" y="121" text-anchor="middle" font-size="11" fill="#9aa7bd">every settle takes this write lock</text>
+      <line x1="210" y1="33" x2="413" y2="95" stroke="#ff7a6e" stroke-width="1.6" marker-end="url(#b)"/>
+      <line x1="210" y1="105" x2="413" y2="105" stroke="#ff7a6e" stroke-width="1.6" marker-end="url(#b)"/>
+      <line x1="210" y1="177" x2="413" y2="115" stroke="#ff7a6e" stroke-width="1.6" marker-end="url(#b)"/>
+      <text x="775" y="95" fill="#9aa7bd" font-size="13">Solana parallelizes by</text>
+      <text x="775" y="113" fill="#9aa7bd" font-size="13">account locks — this</text>
+      <text x="775" y="131" fill="#9aa7bd" font-size="13">serializes all consumers.</text>
+    </g>
+  </svg>
+  </div>
+  <ul>
+    <li>Solana's whole execution model is <b>per-account locking</b> — a shared writable PDA is the one thing that defeats it.</li>
+    <li>Two consumers settling in the same slot contend; the loser's transaction fails and must rebuild.</li>
+  </ul>
+</section>
+
+<!-- 6 · problem 2 -->
+<section class="slide warn">
+  <div class="kicker warn">Problem 2 · predictability</div>
+  <h2>The digest must be computable before signing</h2>
+  <ul class="big">
+    <li>Gas Killer's pipeline signs <b>off-chain, in advance</b>: simulate → build diff → compute digest → collect BLS signatures → submit.</li>
+    <li>If the signed message includes “the counter's current value,” the router <b>cannot know that value</b> at signing time — any other consumer's settlement (or a skipped round) shifts it.</li>
+    <li>Result: racing consumers <b>invalidate each other's certificates</b>. On the EVM side this never happens — each consumer knows its own next <code>transitionIndex</code> exactly.</li>
+  </ul>
+</section>
+
+<!-- 7 · problem 3 -->
+<section class="slide warn">
+  <div class="kicker warn">Problem 3 · semantics</div>
+  <h2>Cross-consumer coupling nobody asked for</h2>
+  <ul class="big">
+    <li>With a global counter, consumer A's settlement <b>changes what consumer B's committee must sign next</b>. That ordering was never part of the protocol.</li>
+    <li>Attestation clarity suffers: did the committee attest <b>“digest D”</b> — or “digest D, provided it lands at counter position k”?</li>
+    <li>The EVM system has no analog of this coupling, so keeping it would be a <b>semantic regression</b> hidden inside “parity.”</li>
+  </ul>
+</section>
+
+<!-- 8 · decision -->
+<section class="slide">
+  <div class="kicker">The decision · D-MSG</div>
+  <h2>Message = the raw 32-byte digest. Nothing else.</h2>
+  <div class="cols">
+    <div class="card good">
+      <h3>NCN · VerifyCertificate (stateless)</h3>
+      <ul>
+        <li>hash-to-curve(domain ∥ digest)</li>
+        <li>subtract non-signer G1s from snapshot APK</li>
+        <li>one pairing · signed stake ≥ threshold bps</li>
+        <li>snapshot <code>generation</code> + freshness check</li>
+        <li><b>writes: none</b></li>
+      </ul>
+    </div>
+    <div class="card good">
+      <h3>Consumer · owns replay</h3>
+      <ul>
+        <li>state PDA holds <code>transition_count</code> — the StateTracker mirror</li>
+        <li>nonce is bound <b>inside the digest preimage</b>:</li>
+        <li><code>sha256(borsh(idx, state_pda, ix, diff))</code></li>
+        <li>settle requires <code>idx + 1 == transition_count</code></li>
+      </ul>
+    </div>
+  </div>
+  <p class="sub">The demo <code>VoteCounter</code> survives — demoted to a <b>demo consumer's own state</b>: its <code>CastVote</code> becomes “verify certificate, bump my own counter.”</p>
+</section>
+
+<!-- 9 · replay -->
+<section class="slide">
+  <div class="kicker">Why this is safe</div>
+  <h2>NCN-level replay is harmless by construction</h2>
+  <ul class="big">
+    <li>A certificate that verifies twice is just <b>a fact observed twice</b>. Verification has no side effects to abuse.</li>
+    <li>Settling twice is impossible: after the first settle, <code>transition_count</code> advanced, so the same digest fails <code>idx + 1 == transition_count</code>.</li>
+    <li>The next transition has a new index → <b>new digest → new certificate</b>. One certificate, one transition, per consumer.</li>
+    <li>This is not a new invention — it is the <b>EVM design, ported faithfully</b>: “cert binds only the digest… replay across heights is safe due to on-chain transition-index ordering.”</li>
+  </ul>
+</section>
+
+<!-- 10 · new flow -->
+<section class="slide">
+  <div class="kicker">Putting it together</div>
+  <h2>The Solana settlement flow under D-MSG</h2>
+  <div class="diagram">
+  <svg viewBox="0 0 980 250" role="img" aria-label="Solana settlement flow">
+    <defs><marker id="c" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0L8,4L0,8z" fill="#9aa7bd"/></marker></defs>
+    <g font-family="Menlo,monospace" font-size="14" fill="#e8ecf3">
+      <rect x="10" y="30" width="205" height="70" rx="10" fill="#1c2230" stroke="#2a3346"/>
+      <text x="112" y="58" text-anchor="middle">consumer state PDA</text>
+      <text x="112" y="80" text-anchor="middle" fill="#ffc266" font-size="12">transition_count · root</text>
+      <rect x="265" y="30" width="235" height="70" rx="10" fill="#1c2230" stroke="#2a3346"/>
+      <text x="382" y="58" text-anchor="middle">digest = sha256(borsh(</text>
+      <text x="382" y="80" text-anchor="middle" fill="#ffc266" font-size="12">idx, state_pda, ix, diff))</text>
+      <rect x="550" y="30" width="185" height="70" rx="10" fill="#1c2230" stroke="#2a3346"/>
+      <text x="642" y="58" text-anchor="middle">router + nodes</text>
+      <text x="642" y="80" text-anchor="middle" fill="#9aa7bd" font-size="12">BN254 aggregate cert</text>
+      <rect x="785" y="8" width="185" height="114" rx="10" fill="#14202a" stroke="#3ecfb2"/>
+      <text x="877" y="34" text-anchor="middle" fill="#3ecfb2">settle ix</text>
+      <text x="877" y="56" text-anchor="middle" font-size="11.5">verify (stateless)</text>
+      <text x="877" y="74" text-anchor="middle" font-size="11.5" fill="#9aa7bd">require idx+1 == count</text>
+      <text x="877" y="92" text-anchor="middle" font-size="11.5" fill="#9aa7bd">1 commitment write</text>
+      <text x="877" y="110" text-anchor="middle" font-size="11.5" fill="#9aa7bd">self-CPI event · count++</text>
+      <line x1="215" y1="65" x2="258" y2="65" stroke="#9aa7bd" stroke-width="1.6" marker-end="url(#c)"/>
+      <line x1="500" y1="65" x2="543" y2="65" stroke="#9aa7bd" stroke-width="1.6" marker-end="url(#c)"/>
+      <line x1="735" y1="65" x2="778" y2="65" stroke="#9aa7bd" stroke-width="1.6" marker-end="url(#c)"/>
+      <rect x="550" y="168" width="420" height="60" rx="10" fill="#1c2230" stroke="#2a3346"/>
+      <text x="760" y="192" text-anchor="middle" font-size="12.5" fill="#9aa7bd">NCN Snapshot PDA — stake, APK, generation</text>
+      <text x="760" y="212" text-anchor="middle" font-size="12.5" fill="#9aa7bd">read-only in the verify path</text>
+      <line x1="877" y1="163" x2="877" y2="127" stroke="#3ecfb2" stroke-width="1.6" stroke-dasharray="4 4" marker-end="url(#c)"/>
+    </g>
+  </svg>
+  </div>
+  <ul>
+    <li>Consumers settle <b>in parallel</b> — each writes only its own PDA; the NCN snapshot is only ever read.</li>
+  </ul>
+</section>
+
+<!-- 11 · why before phase 1 -->
+<section class="slide mid">
+  <div class="kicker mid">Why sign-off must precede Phase 1</div>
+  <h2>D-MSG changes two load-bearing things at once</h2>
+  <ul class="big">
+    <li><b>The instruction set</b>: stateful <code>CastVote</code> → stateless <code>VerifyCertificate</code>, with the demo counter moved out of the NCN into the example consumer.</li>
+    <li><b>The signature domain</b>: operators sign the digest, not a counter — so the router scheme crate, the CRYPTO-1 alpha computation, and every differential test vector are built against these exact bytes. Changing it later means re-keying the committee and re-auditing the crypto.</li>
+    <li>Concurrency model becomes per-consumer PDAs — this shapes every account layout Phase 1 touches.</li>
+  </ul>
+</section>
+
+<!-- 12 · D-VERIFY -->
+<section class="slide">
+  <div class="kicker">The sibling question · D-VERIFY (not blocking)</div>
+  <h2>CPI into the NCN, or verify inline?</h2>
+  <div class="cols">
+    <div class="card">
+      <h3>Option A — CPI into VerifyCertificate</h3>
+      <ul>
+        <li>one audited implementation, shared by all consumers</li>
+        <li>costs CPI depth + invoke overhead</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Option B — inline verify in settlement</h3>
+      <ul>
+        <li>reads the Snapshot PDA directly, cheaper</li>
+        <li>duplicates the verification code → larger audit surface</li>
+      </ul>
+    </div>
+  </div>
+  <p class="sub">Because D-MSG made <b>both options stateless</b>, this is purely a compute-unit / audit-surface trade with no protocol consequence — it gets decided by <b>measurement in Phase 4</b>, and nothing upstream waits on it.</p>
+</section>
+
+<!-- 13 · signoff -->
+<section class="slide">
+  <div class="kicker">Sign-off</div>
+  <h2>D-MSG, as proposed</h2>
+  <ul class="big">
+    <li><span class="tag ok">SIGN</span> committee message = <b>raw 32-byte digest</b>, domain-separated at hash-to-curve</li>
+    <li><span class="tag ok">VERIFY</span> NCN <code>VerifyCertificate</code> is <b>stateless</b> — generation-checked, threshold-checked, zero writes</li>
+    <li><span class="tag ok">REPLAY</span> nonce is <b>consumer-local</b> (<code>transition_count</code> in each state PDA), bound inside the digest preimage</li>
+    <li><span class="tag no">REJECT</span> NCN-global vote counters in the verify path (both drafts) — lock contention, unpredictable digests, cross-consumer coupling</li>
+  </ul>
+  <p class="quote">Approving this fixes the Phase 1 instruction set and the signature domain together — the last blocking design input before the build starts.</p>
+</section>
+
+</div>
+<div class="hud" id="hud"></div>
+<div class="hint">← → · space · click</div>
+<script>
+  const slides=[...document.querySelectorAll('.slide')];let i=0;
+  const bar=document.getElementById('bar'),hud=document.getElementById('hud');
+  function show(n){i=Math.max(0,Math.min(slides.length-1,n));
+    slides.forEach((s,k)=>s.classList.toggle('active',k===i));
+    bar.style.width=((i+1)/slides.length*100)+'%';hud.textContent=(i+1)+' / '+slides.length;}
+  addEventListener('keydown',e=>{
+    if(['ArrowRight','ArrowDown',' ','PageDown'].includes(e.key)){e.preventDefault();show(i+1);}
+    if(['ArrowLeft','ArrowUp','PageUp'].includes(e.key)){e.preventDefault();show(i-1);}
+    if(e.key==='Home')show(0); if(e.key==='End')show(slides.length-1);});
+  addEventListener('click',e=>{show(e.clientX<innerWidth*0.25?i-1:i+1);});
+  show(0);
+</script>
+</body>
+</html>
