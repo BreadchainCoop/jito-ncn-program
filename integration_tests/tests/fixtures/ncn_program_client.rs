@@ -11,8 +11,8 @@ use ncn_program_client::{
         AdminRegisterStMintBuilder, AdminSetNewAdminBuilder, AdminSetParametersBuilder,
         InitializeConfigBuilder, InitializeSnapshotBuilder, InitializeVaultRegistryBuilder,
         ReallocSnapshotBuilder, RegisterOperatorBuilder, RegisterVaultBuilder,
-        SnapshotVaultOperatorDelegationBuilder, UpdateOperatorBN128KeysBuilder,
-        UpdateOperatorIpPortBuilder, VerifyCertificateBuilder,
+        RemoveOperatorBuilder, SnapshotVaultOperatorDelegationBuilder,
+        UpdateOperatorBN128KeysBuilder, UpdateOperatorIpPortBuilder, VerifyCertificateBuilder,
     },
     types::ConfigAdminRole,
 };
@@ -764,6 +764,35 @@ impl NCNProgramClient {
             &[ix, compute_budget_ix],
             Some(&self.payer.pubkey()),
             &[&self.payer, operator_admin],
+            blockhash,
+        ))
+        .await
+    }
+
+    /// Removes an operator from the snapshot (tombstone + APK subtract +
+    /// generation bump), signed by the given admin (NCN or operator admin).
+    pub async fn do_remove_operator(
+        &mut self,
+        ncn: Pubkey,
+        operator_pubkey: Pubkey,
+        admin: &Keypair,
+    ) -> TestResult<()> {
+        let config = NcnConfig::find_program_address(&ncn_program::id(), &ncn).0;
+        let snapshot = Snapshot::find_program_address(&ncn_program::id(), &ncn).0;
+
+        let ix = RemoveOperatorBuilder::new()
+            .config(config)
+            .ncn(ncn)
+            .operator(operator_pubkey)
+            .admin(admin.pubkey())
+            .snapshot(snapshot)
+            .instruction();
+
+        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        self.process_transaction(&Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&self.payer.pubkey()),
+            &[&self.payer, admin],
             blockhash,
         ))
         .await

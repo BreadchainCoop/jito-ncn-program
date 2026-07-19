@@ -33,8 +33,8 @@ use ncn_program_client::{
         AdminRegisterStMintBuilder, AdminSetNewAdminBuilder, AdminSetParametersBuilder,
         InitializeConfigBuilder as InitializeNCNProgramConfigBuilder, InitializeSnapshotBuilder,
         InitializeVaultRegistryBuilder, ReallocSnapshotBuilder, RegisterOperatorBuilder,
-        RegisterVaultBuilder, SnapshotVaultOperatorDelegationBuilder, UpdateOperatorIpPortBuilder,
-        VerifyCertificateBuilder,
+        RegisterVaultBuilder, RemoveOperatorBuilder, SnapshotVaultOperatorDelegationBuilder,
+        UpdateOperatorIpPortBuilder, VerifyCertificateBuilder,
     },
     types::ConfigAdminRole,
 };
@@ -632,6 +632,41 @@ pub async fn snapshot_vault_operator_delegation(
 }
 
 // --------------------- operator ------------------------------
+
+/// Removes an operator from the snapshot: tombstones its index, subtracts its
+/// G1 key from the running APK, and bumps the snapshot generation. The CLI
+/// keypair must be the NCN admin or the operator's admin.
+pub async fn remove_operator(handler: &CliHandler, operator: &Pubkey) -> Result<()> {
+    let keypair = handler.keypair()?;
+    let ncn = *handler.ncn()?;
+    let operator = *operator;
+
+    let (config, _, _) = NCNProgramConfig::find_program_address(&handler.ncn_program_id, &ncn);
+
+    let (snapshot, _, _) = Snapshot::find_program_address(&handler.ncn_program_id, &ncn);
+
+    let remove_operator_ix = RemoveOperatorBuilder::new()
+        .config(config)
+        .ncn(ncn)
+        .operator(operator)
+        .admin(keypair.pubkey())
+        .snapshot(snapshot)
+        .instruction();
+
+    send_and_log_transaction(
+        handler,
+        &[remove_operator_ix],
+        &[],
+        "Removed Operator",
+        &[
+            format!("NCN: {:?}", ncn),
+            format!("Operator: {:?}", operator),
+        ],
+    )
+    .await?;
+
+    Ok(())
+}
 
 pub async fn verify_certificate(
     handler: &CliHandler,

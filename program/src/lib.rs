@@ -10,6 +10,7 @@ mod realloc_snapshot;
 
 mod register_operator;
 mod register_vault;
+mod remove_operator;
 mod snapshot_vault_operator_delegation;
 mod update_operator_bn128_keys;
 mod update_operator_ip_port;
@@ -35,7 +36,7 @@ use crate::{
     initialize_snapshot::process_initialize_snapshot,
     initialize_vault_registry::process_initialize_vault_registry,
     realloc_snapshot::process_realloc_snapshot, register_operator::process_register_operator,
-    register_vault::process_register_vault,
+    register_vault::process_register_vault, remove_operator::process_remove_operator,
     snapshot_vault_operator_delegation::process_snapshot_vault_operator_delegation,
     update_operator_bn128_keys::process_update_operator_bn128_keys,
     update_operator_ip_port::process_update_operator_ip_port,
@@ -120,6 +121,10 @@ pub fn process_instruction(
             process_update_operator_bn128_keys(
                 program_id, accounts, g1_pubkey, g2_pubkey, signature,
             )
+        }
+        NCNProgramInstruction::RemoveOperator => {
+            msg!("Instruction: RemoveOperator");
+            process_remove_operator(program_id, accounts)
         }
         NCNProgramInstruction::UpdateOperatorIpPort { ip_address, port } => {
             msg!("Instruction: UpdateOperatorIpPort");

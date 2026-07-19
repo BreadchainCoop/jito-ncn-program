@@ -37,7 +37,7 @@ import {
 import { NCN_PROGRAM_PROGRAM_ADDRESS } from '../programs';
 import { getAccountMetaFactory, type ResolvedAccount } from '../shared';
 
-export const VERIFY_CERTIFICATE_DISCRIMINATOR = 9;
+export const VERIFY_CERTIFICATE_DISCRIMINATOR = 10;
 
 export function getVerifyCertificateDiscriminatorBytes() {
   return getU8Encoder().encode(VERIFY_CERTIFICATE_DISCRIMINATOR);

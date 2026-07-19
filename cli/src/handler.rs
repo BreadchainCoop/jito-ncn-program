@@ -14,8 +14,8 @@ use crate::{
         admin_create_config, admin_fund_account_payer, admin_register_st_mint, admin_set_new_admin,
         admin_set_parameters, crank_register_vaults, crank_snapshot, crank_snapshot_unupdated,
         create_snapshot, create_vault_registry, full_vault_update, register_operator,
-        register_vault, snapshot_vault_operator_delegation, update_operator_ip_port,
-        verify_certificate,
+        register_vault, remove_operator, snapshot_vault_operator_delegation,
+        update_operator_ip_port, verify_certificate,
     },
     keeper::keeper_loop::startup_ncn_keeper,
 };
@@ -261,6 +261,12 @@ impl CliHandler {
             ProgramCommand::CreateVaultRegistry => create_vault_registry(self).await,
 
             ProgramCommand::RegisterVault {} => register_vault(self, self.vault()).await,
+
+            ProgramCommand::RemoveOperator { operator } => {
+                let operator = Pubkey::from_str(&operator)
+                    .map_err(|e| anyhow!("Error parsing operator: {}", e))?;
+                remove_operator(self, &operator).await
+            }
 
             ProgramCommand::RegisterOperator {
                 operator,

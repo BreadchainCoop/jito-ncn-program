@@ -285,6 +285,10 @@ impl Snapshot {
             }
         }
 
+        // Key rotation changes the aggregate: certificates assembled against
+        // the previous generation must no longer verify.
+        self.bump_generation()?;
+
         Ok(())
     }
 
@@ -349,7 +353,45 @@ impl Snapshot {
         self.operator_snapshots[operator_index as usize] = operator_snapshot;
 
         self.increment_operator_registration(slot)?;
+
+        // Adding an operator changes the signer set: certificates assembled
+        // against the previous generation must no longer verify.
+        self.bump_generation()?;
         Ok(())
+    }
+
+    /// Removes an operator from the snapshot (docs/INTERFACES.md §3
+    /// RemoveOperator): subtracts its G1 key from the running APK, tombstones
+    /// its index slot (index NOT reused within the same epoch — the slot is
+    /// left as `u64::MAX` and `operators_registered` is unchanged so the
+    /// verify loop still covers every live index), and bumps the generation.
+    ///
+    /// Returns the freed `ncn_operator_index`.
+    pub fn remove_operator_snapshot(&mut self, operator: &Pubkey) -> Result<u64, NCNProgramError> {
+        let (index, g1_pubkey) = {
+            let operator_snapshot = self
+                .find_operator_snapshot(operator)
+                .ok_or(NCNProgramError::OperatorIsNotInSnapshot)?;
+            (
+                operator_snapshot.ncn_operator_index(),
+                operator_snapshot.g1_pubkey(),
+            )
+        };
+
+        // Subtract the operator's key from the running aggregate. A zeroed key
+        // never contributed to the aggregate, so there is nothing to subtract.
+        if g1_pubkey != [0u8; G1_COMPRESSED_POINT_SIZE] {
+            self.subtract_g1_pubkey_from_total_agg(&g1_pubkey)?;
+        }
+
+        // Tombstone the slot: reset to the default (index = u64::MAX, inactive,
+        // zero key). The index is left occupied by a tombstone rather than
+        // shifting the array so live operators keep their indices.
+        self.operator_snapshots[index as usize] = OperatorSnapshot::default();
+
+        self.bump_generation()?;
+
+        Ok(index)
     }
 
     /// Get all active operator snapshots

@@ -295,6 +295,41 @@
       }
     },
     {
+      "name": "RemoveOperator",
+      "accounts": [
+        {
+          "name": "config",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "ncn",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "operator",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "snapshot",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u8",
+        "value": 5
+      }
+    },
+    {
       "name": "UpdateOperatorIpPort",
       "accounts": [
         {
@@ -340,7 +375,7 @@
       ],
       "discriminant": {
         "type": "u8",
-        "value": 5
+        "value": 6
       }
     },
     {
@@ -370,7 +405,7 @@
       "args": [],
       "discriminant": {
         "type": "u8",
-        "value": 6
+        "value": 7
       }
     },
     {
@@ -405,7 +440,7 @@
       "args": [],
       "discriminant": {
         "type": "u8",
-        "value": 7
+        "value": 8
       }
     },
     {
@@ -465,7 +500,7 @@
       "args": [],
       "discriminant": {
         "type": "u8",
-        "value": 8
+        "value": 9
       }
     },
     {
@@ -531,7 +566,7 @@
       ],
       "discriminant": {
         "type": "u8",
-        "value": 9
+        "value": 10
       }
     },
     {
@@ -593,7 +628,7 @@
       ],
       "discriminant": {
         "type": "u8",
-        "value": 10
+        "value": 11
       }
     },
     {
@@ -630,7 +665,7 @@
       ],
       "discriminant": {
         "type": "u8",
-        "value": 11
+        "value": 12
       }
     },
     {
@@ -665,7 +700,7 @@
       "args": [],
       "discriminant": {
         "type": "u8",
-        "value": 12
+        "value": 13
       }
     }
   ],
@@ -1750,6 +1785,11 @@
       "code": 8808,
       "name": "InsufficientStakeBps",
       "msg": "Insufficient signed stake bps for consensus threshold"
+    },
+    {
+      "code": 8809,
+      "name": "CannotRemoveOperator",
+      "msg": "Cannot remove operator: signer is not authorized"
     }
   ],
   "metadata": {

@@ -15,6 +15,7 @@ export * from './initializeVaultRegistry';
 export * from './reallocSnapshot';
 export * from './registerOperator';
 export * from './registerVault';
+export * from './removeOperator';
 export * from './snapshotVaultOperatorDelegation';
 export * from './updateOperatorBN128Keys';
 export * from './updateOperatorIpPort';

@@ -250,6 +250,8 @@ export const NCN_PROGRAM_ERROR__INVALID_CONSENSUS_THRESHOLD_BPS = 0x2266; // 880
 export const NCN_PROGRAM_ERROR__SNAPSHOT_GENERATION_MISMATCH = 0x2267; // 8807
 /** InsufficientStakeBps: Insufficient signed stake bps for consensus threshold */
 export const NCN_PROGRAM_ERROR__INSUFFICIENT_STAKE_BPS = 0x2268; // 8808
+/** CannotRemoveOperator: Cannot remove operator: signer is not authorized */
+export const NCN_PROGRAM_ERROR__CANNOT_REMOVE_OPERATOR = 0x2269; // 8809
 
 export type NcnProgramError =
   | typeof NCN_PROGRAM_ERROR__ACCOUNT_ALREADY_INITIALIZED
@@ -272,6 +274,7 @@ export type NcnProgramError =
   | typeof NCN_PROGRAM_ERROR__CANNOT_CLOSE_ACCOUNT_NOT_ENOUGH_EPOCHS
   | typeof NCN_PROGRAM_ERROR__CANNOT_CLOSE_EPOCH_STATE_ACCOUNT
   | typeof NCN_PROGRAM_ERROR__CANNOT_CREATE_FUTURE_WEIGHT_TABLES
+  | typeof NCN_PROGRAM_ERROR__CANNOT_REMOVE_OPERATOR
   | typeof NCN_PROGRAM_ERROR__CANNOT_VOTE_WITH_ZERO_STAKE
   | typeof NCN_PROGRAM_ERROR__CAST_TO_IMPRECISE_NUMBER_ERROR
   | typeof NCN_PROGRAM_ERROR__CAST_TO_U128_ERROR
@@ -394,6 +397,7 @@ if (process.env.NODE_ENV !== 'production') {
     [NCN_PROGRAM_ERROR__CANNOT_CLOSE_ACCOUNT_NOT_ENOUGH_EPOCHS]: `Cannot close account - Not enough epochs have passed since consensus reached`,
     [NCN_PROGRAM_ERROR__CANNOT_CLOSE_EPOCH_STATE_ACCOUNT]: `Cannot close epoch state account - Epoch state needs all other accounts to be closed first`,
     [NCN_PROGRAM_ERROR__CANNOT_CREATE_FUTURE_WEIGHT_TABLES]: `Cannnot create future weight tables`,
+    [NCN_PROGRAM_ERROR__CANNOT_REMOVE_OPERATOR]: `Cannot remove operator: signer is not authorized`,
     [NCN_PROGRAM_ERROR__CANNOT_VOTE_WITH_ZERO_STAKE]: `Cannot Vote With Zero Delegation`,
     [NCN_PROGRAM_ERROR__CAST_TO_IMPRECISE_NUMBER_ERROR]: `Cast to imprecise number error`,
     [NCN_PROGRAM_ERROR__CAST_TO_U128_ERROR]: `Cast to u128 error`,

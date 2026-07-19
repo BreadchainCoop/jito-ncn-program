@@ -7,6 +7,7 @@ mod initialize_vault_registry;
 mod meta_tests;
 mod register_operator;
 mod register_vault;
+mod remove_operator;
 mod restaking_variations;
 mod set_new_admin;
 mod simulation_test;

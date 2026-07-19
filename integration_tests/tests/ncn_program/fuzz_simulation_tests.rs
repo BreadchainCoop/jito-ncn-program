@@ -203,7 +203,10 @@ mod fuzz_tests {
         // 5. Verify a certificate signed by the full operator set
         {
             let digest = TEST_DIGEST;
-            let expected_generation = ncn_program_client.get_snapshot(ncn_pubkey).await?.generation();
+            let expected_generation = ncn_program_client
+                .get_snapshot(ncn_pubkey)
+                .await?
+                .generation();
 
             // All operators sign the same digest (no non-signers in this simulation)
             let mut signatures: Vec<G1Point> = vec![];

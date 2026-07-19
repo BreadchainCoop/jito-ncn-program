@@ -18,183 +18,179 @@ import {
   type Decoder,
   type Encoder,
   type IAccountMeta,
+  type IAccountSignerMeta,
   type IInstruction,
   type IInstructionWithAccounts,
   type IInstructionWithData,
   type ReadonlyAccount,
+  type ReadonlySignerAccount,
+  type TransactionSigner,
   type WritableAccount,
 } from '@solana/web3.js';
 import { NCN_PROGRAM_PROGRAM_ADDRESS } from '../programs';
 import { getAccountMetaFactory, type ResolvedAccount } from '../shared';
 
-export const REALLOC_SNAPSHOT_DISCRIMINATOR = 8;
+export const REMOVE_OPERATOR_DISCRIMINATOR = 5;
 
-export function getReallocSnapshotDiscriminatorBytes() {
-  return getU8Encoder().encode(REALLOC_SNAPSHOT_DISCRIMINATOR);
+export function getRemoveOperatorDiscriminatorBytes() {
+  return getU8Encoder().encode(REMOVE_OPERATOR_DISCRIMINATOR);
 }
 
-export type ReallocSnapshotInstruction<
+export type RemoveOperatorInstruction<
   TProgram extends string = typeof NCN_PROGRAM_PROGRAM_ADDRESS,
-  TAccountNcn extends string | IAccountMeta<string> = string,
   TAccountConfig extends string | IAccountMeta<string> = string,
+  TAccountNcn extends string | IAccountMeta<string> = string,
+  TAccountOperator extends string | IAccountMeta<string> = string,
+  TAccountAdmin extends string | IAccountMeta<string> = string,
   TAccountSnapshot extends string | IAccountMeta<string> = string,
-  TAccountAccountPayer extends string | IAccountMeta<string> = string,
-  TAccountSystemProgram extends
-    | string
-    | IAccountMeta<string> = '11111111111111111111111111111111',
   TRemainingAccounts extends readonly IAccountMeta<string>[] = [],
 > = IInstruction<TProgram> &
   IInstructionWithData<Uint8Array> &
   IInstructionWithAccounts<
     [
-      TAccountNcn extends string ? ReadonlyAccount<TAccountNcn> : TAccountNcn,
       TAccountConfig extends string
         ? ReadonlyAccount<TAccountConfig>
         : TAccountConfig,
+      TAccountNcn extends string ? ReadonlyAccount<TAccountNcn> : TAccountNcn,
+      TAccountOperator extends string
+        ? ReadonlyAccount<TAccountOperator>
+        : TAccountOperator,
+      TAccountAdmin extends string
+        ? ReadonlySignerAccount<TAccountAdmin> &
+            IAccountSignerMeta<TAccountAdmin>
+        : TAccountAdmin,
       TAccountSnapshot extends string
         ? WritableAccount<TAccountSnapshot>
         : TAccountSnapshot,
-      TAccountAccountPayer extends string
-        ? WritableAccount<TAccountAccountPayer>
-        : TAccountAccountPayer,
-      TAccountSystemProgram extends string
-        ? ReadonlyAccount<TAccountSystemProgram>
-        : TAccountSystemProgram,
       ...TRemainingAccounts,
     ]
   >;
 
-export type ReallocSnapshotInstructionData = { discriminator: number };
+export type RemoveOperatorInstructionData = { discriminator: number };
 
-export type ReallocSnapshotInstructionDataArgs = {};
+export type RemoveOperatorInstructionDataArgs = {};
 
-export function getReallocSnapshotInstructionDataEncoder(): Encoder<ReallocSnapshotInstructionDataArgs> {
+export function getRemoveOperatorInstructionDataEncoder(): Encoder<RemoveOperatorInstructionDataArgs> {
   return transformEncoder(
     getStructEncoder([['discriminator', getU8Encoder()]]),
-    (value) => ({ ...value, discriminator: REALLOC_SNAPSHOT_DISCRIMINATOR })
+    (value) => ({ ...value, discriminator: REMOVE_OPERATOR_DISCRIMINATOR })
   );
 }
 
-export function getReallocSnapshotInstructionDataDecoder(): Decoder<ReallocSnapshotInstructionData> {
+export function getRemoveOperatorInstructionDataDecoder(): Decoder<RemoveOperatorInstructionData> {
   return getStructDecoder([['discriminator', getU8Decoder()]]);
 }
 
-export function getReallocSnapshotInstructionDataCodec(): Codec<
-  ReallocSnapshotInstructionDataArgs,
-  ReallocSnapshotInstructionData
+export function getRemoveOperatorInstructionDataCodec(): Codec<
+  RemoveOperatorInstructionDataArgs,
+  RemoveOperatorInstructionData
 > {
   return combineCodec(
-    getReallocSnapshotInstructionDataEncoder(),
-    getReallocSnapshotInstructionDataDecoder()
+    getRemoveOperatorInstructionDataEncoder(),
+    getRemoveOperatorInstructionDataDecoder()
   );
 }
 
-export type ReallocSnapshotInput<
-  TAccountNcn extends string = string,
+export type RemoveOperatorInput<
   TAccountConfig extends string = string,
+  TAccountNcn extends string = string,
+  TAccountOperator extends string = string,
+  TAccountAdmin extends string = string,
   TAccountSnapshot extends string = string,
-  TAccountAccountPayer extends string = string,
-  TAccountSystemProgram extends string = string,
 > = {
-  ncn: Address<TAccountNcn>;
   config: Address<TAccountConfig>;
+  ncn: Address<TAccountNcn>;
+  operator: Address<TAccountOperator>;
+  admin: TransactionSigner<TAccountAdmin>;
   snapshot: Address<TAccountSnapshot>;
-  accountPayer: Address<TAccountAccountPayer>;
-  systemProgram?: Address<TAccountSystemProgram>;
 };
 
-export function getReallocSnapshotInstruction<
-  TAccountNcn extends string,
+export function getRemoveOperatorInstruction<
   TAccountConfig extends string,
+  TAccountNcn extends string,
+  TAccountOperator extends string,
+  TAccountAdmin extends string,
   TAccountSnapshot extends string,
-  TAccountAccountPayer extends string,
-  TAccountSystemProgram extends string,
   TProgramAddress extends Address = typeof NCN_PROGRAM_PROGRAM_ADDRESS,
 >(
-  input: ReallocSnapshotInput<
-    TAccountNcn,
+  input: RemoveOperatorInput<
     TAccountConfig,
-    TAccountSnapshot,
-    TAccountAccountPayer,
-    TAccountSystemProgram
+    TAccountNcn,
+    TAccountOperator,
+    TAccountAdmin,
+    TAccountSnapshot
   >,
   config?: { programAddress?: TProgramAddress }
-): ReallocSnapshotInstruction<
+): RemoveOperatorInstruction<
   TProgramAddress,
-  TAccountNcn,
   TAccountConfig,
-  TAccountSnapshot,
-  TAccountAccountPayer,
-  TAccountSystemProgram
+  TAccountNcn,
+  TAccountOperator,
+  TAccountAdmin,
+  TAccountSnapshot
 > {
   // Program address.
   const programAddress = config?.programAddress ?? NCN_PROGRAM_PROGRAM_ADDRESS;
 
   // Original accounts.
   const originalAccounts = {
-    ncn: { value: input.ncn ?? null, isWritable: false },
     config: { value: input.config ?? null, isWritable: false },
+    ncn: { value: input.ncn ?? null, isWritable: false },
+    operator: { value: input.operator ?? null, isWritable: false },
+    admin: { value: input.admin ?? null, isWritable: false },
     snapshot: { value: input.snapshot ?? null, isWritable: true },
-    accountPayer: { value: input.accountPayer ?? null, isWritable: true },
-    systemProgram: { value: input.systemProgram ?? null, isWritable: false },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
     ResolvedAccount
   >;
 
-  // Resolve default values.
-  if (!accounts.systemProgram.value) {
-    accounts.systemProgram.value =
-      '11111111111111111111111111111111' as Address<'11111111111111111111111111111111'>;
-  }
-
   const getAccountMeta = getAccountMetaFactory(programAddress, 'programId');
   const instruction = {
     accounts: [
-      getAccountMeta(accounts.ncn),
       getAccountMeta(accounts.config),
+      getAccountMeta(accounts.ncn),
+      getAccountMeta(accounts.operator),
+      getAccountMeta(accounts.admin),
       getAccountMeta(accounts.snapshot),
-      getAccountMeta(accounts.accountPayer),
-      getAccountMeta(accounts.systemProgram),
     ],
     programAddress,
-    data: getReallocSnapshotInstructionDataEncoder().encode({}),
-  } as ReallocSnapshotInstruction<
+    data: getRemoveOperatorInstructionDataEncoder().encode({}),
+  } as RemoveOperatorInstruction<
     TProgramAddress,
-    TAccountNcn,
     TAccountConfig,
-    TAccountSnapshot,
-    TAccountAccountPayer,
-    TAccountSystemProgram
+    TAccountNcn,
+    TAccountOperator,
+    TAccountAdmin,
+    TAccountSnapshot
   >;
 
   return instruction;
 }
 
-export type ParsedReallocSnapshotInstruction<
+export type ParsedRemoveOperatorInstruction<
   TProgram extends string = typeof NCN_PROGRAM_PROGRAM_ADDRESS,
   TAccountMetas extends readonly IAccountMeta[] = readonly IAccountMeta[],
 > = {
   programAddress: Address<TProgram>;
   accounts: {
-    ncn: TAccountMetas[0];
-    config: TAccountMetas[1];
-    snapshot: TAccountMetas[2];
-    accountPayer: TAccountMetas[3];
-    systemProgram: TAccountMetas[4];
+    config: TAccountMetas[0];
+    ncn: TAccountMetas[1];
+    operator: TAccountMetas[2];
+    admin: TAccountMetas[3];
+    snapshot: TAccountMetas[4];
   };
-  data: ReallocSnapshotInstructionData;
+  data: RemoveOperatorInstructionData;
 };
 
-export function parseReallocSnapshotInstruction<
+export function parseRemoveOperatorInstruction<
   TProgram extends string,
   TAccountMetas extends readonly IAccountMeta[],
 >(
   instruction: IInstruction<TProgram> &
     IInstructionWithAccounts<TAccountMetas> &
     IInstructionWithData<Uint8Array>
-): ParsedReallocSnapshotInstruction<TProgram, TAccountMetas> {
+): ParsedRemoveOperatorInstruction<TProgram, TAccountMetas> {
   if (instruction.accounts.length < 5) {
     // TODO: Coded error.
     throw new Error('Not enough accounts');
@@ -208,12 +204,12 @@ export function parseReallocSnapshotInstruction<
   return {
     programAddress: instruction.programAddress,
     accounts: {
-      ncn: getNextAccount(),
       config: getNextAccount(),
+      ncn: getNextAccount(),
+      operator: getNextAccount(),
+      admin: getNextAccount(),
       snapshot: getNextAccount(),
-      accountPayer: getNextAccount(),
-      systemProgram: getNextAccount(),
     },
-    data: getReallocSnapshotInstructionDataDecoder().decode(instruction.data),
+    data: getRemoveOperatorInstructionDataDecoder().decode(instruction.data),
   };
 }

@@ -242,6 +242,8 @@ pub enum NCNProgramError {
     SnapshotGenerationMismatch,
     #[error("Insufficient signed stake bps for consensus threshold")]
     InsufficientStakeBps,
+    #[error("Cannot remove operator: signer is not authorized")]
+    CannotRemoveOperator,
 }
 
 impl<T> DecodeError<T> for NCNProgramError {

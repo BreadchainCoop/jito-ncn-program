@@ -70,7 +70,7 @@ pub struct VerifyCertificateInstructionData {
 
 impl VerifyCertificateInstructionData {
     pub fn new() -> Self {
-        Self { discriminator: 9 }
+        Self { discriminator: 10 }
     }
 }
 

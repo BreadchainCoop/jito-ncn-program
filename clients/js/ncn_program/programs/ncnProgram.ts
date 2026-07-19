@@ -22,6 +22,7 @@ import {
   type ParsedReallocSnapshotInstruction,
   type ParsedRegisterOperatorInstruction,
   type ParsedRegisterVaultInstruction,
+  type ParsedRemoveOperatorInstruction,
   type ParsedSnapshotVaultOperatorDelegationInstruction,
   type ParsedUpdateOperatorBN128KeysInstruction,
   type ParsedUpdateOperatorIpPortInstruction,
@@ -44,6 +45,7 @@ export enum NcnProgramInstruction {
   RegisterVault,
   RegisterOperator,
   UpdateOperatorBN128Keys,
+  RemoveOperator,
   UpdateOperatorIpPort,
   InitializeSnapshot,
   ReallocSnapshot,
@@ -74,27 +76,30 @@ export function identifyNcnProgramInstruction(
     return NcnProgramInstruction.UpdateOperatorBN128Keys;
   }
   if (containsBytes(data, getU8Encoder().encode(5), 0)) {
-    return NcnProgramInstruction.UpdateOperatorIpPort;
+    return NcnProgramInstruction.RemoveOperator;
   }
   if (containsBytes(data, getU8Encoder().encode(6), 0)) {
-    return NcnProgramInstruction.InitializeSnapshot;
+    return NcnProgramInstruction.UpdateOperatorIpPort;
   }
   if (containsBytes(data, getU8Encoder().encode(7), 0)) {
-    return NcnProgramInstruction.ReallocSnapshot;
+    return NcnProgramInstruction.InitializeSnapshot;
   }
   if (containsBytes(data, getU8Encoder().encode(8), 0)) {
-    return NcnProgramInstruction.SnapshotVaultOperatorDelegation;
+    return NcnProgramInstruction.ReallocSnapshot;
   }
   if (containsBytes(data, getU8Encoder().encode(9), 0)) {
-    return NcnProgramInstruction.VerifyCertificate;
+    return NcnProgramInstruction.SnapshotVaultOperatorDelegation;
   }
   if (containsBytes(data, getU8Encoder().encode(10), 0)) {
-    return NcnProgramInstruction.AdminSetParameters;
+    return NcnProgramInstruction.VerifyCertificate;
   }
   if (containsBytes(data, getU8Encoder().encode(11), 0)) {
-    return NcnProgramInstruction.AdminSetNewAdmin;
+    return NcnProgramInstruction.AdminSetParameters;
   }
   if (containsBytes(data, getU8Encoder().encode(12), 0)) {
+    return NcnProgramInstruction.AdminSetNewAdmin;
+  }
+  if (containsBytes(data, getU8Encoder().encode(13), 0)) {
     return NcnProgramInstruction.AdminRegisterStMint;
   }
   throw new Error(
@@ -120,6 +125,9 @@ export type ParsedNcnProgramInstruction<
   | ({
       instructionType: NcnProgramInstruction.UpdateOperatorBN128Keys;
     } & ParsedUpdateOperatorBN128KeysInstruction<TProgram>)
+  | ({
+      instructionType: NcnProgramInstruction.RemoveOperator;
+    } & ParsedRemoveOperatorInstruction<TProgram>)
   | ({
       instructionType: NcnProgramInstruction.UpdateOperatorIpPort;
     } & ParsedUpdateOperatorIpPortInstruction<TProgram>)

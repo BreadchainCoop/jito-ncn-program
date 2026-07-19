@@ -364,6 +364,9 @@ pub enum NcnProgramError {
     /// 8808 - Insufficient signed stake bps for consensus threshold
     #[error("Insufficient signed stake bps for consensus threshold")]
     InsufficientStakeBps = 0x2268,
+    /// 8809 - Cannot remove operator: signer is not authorized
+    #[error("Cannot remove operator: signer is not authorized")]
+    CannotRemoveOperator = 0x2269,
 }
 
 impl solana_program::program_error::PrintProgramError for NcnProgramError {

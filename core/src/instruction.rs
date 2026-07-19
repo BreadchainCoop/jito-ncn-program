@@ -92,6 +92,16 @@ pub enum NCNProgramInstruction {
         signature: [u8; 64],
     },
 
+    /// Removes an operator from the snapshot: tombstones its index, subtracts
+    /// its G1 from the running APK, and bumps the snapshot generation.
+    /// Signer must be the NCN admin or the operator's admin.
+    #[account(0, name = "config")]
+    #[account(1, name = "ncn")]
+    #[account(2, name = "operator")]
+    #[account(3, signer, name = "admin")]
+    #[account(4, writable, name = "snapshot")]
+    RemoveOperator,
+
     /// Updates an operator's IP address and port in their individual operator PDA
     #[account(0, name = "config")]
     #[account(1, writable, name = "ncn_operator_account")]

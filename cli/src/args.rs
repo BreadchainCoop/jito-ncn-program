@@ -213,6 +213,11 @@ pub enum ProgramCommand {
         keys_file: String,
     },
 
+    RemoveOperator {
+        #[arg(long, help = "Operator address to remove from the snapshot")]
+        operator: String,
+    },
+
     UpdateOperatorIpPort {
         #[arg(long, help = "Operator address")]
         operator: String,
