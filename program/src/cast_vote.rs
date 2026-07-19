@@ -7,7 +7,7 @@ use ncn_program_core::{
     error::NCNProgramError,
     g1_point::{G1CompressedPoint, G1Point},
     g2_point::{G2CompressedPoint, G2Point},
-    schemes::Sha256Normalized,
+    schemes::{MessageDigest, Sha256Normalized},
     snapshot::Snapshot,
     vote_counter::VoteCounter,
 };
@@ -67,6 +67,7 @@ pub fn process_cast_vote(
     // Pad to 32 bytes for signature verification
     let mut message_32 = [0u8; 32];
     message_32[..8].copy_from_slice(&message);
+    let digest = MessageDigest(message_32);
     drop(vote_counter_data);
 
     let ncn_epoch_length = {
@@ -177,9 +178,9 @@ pub fn process_cast_vote(
     if non_signers_count == 0 {
         msg!("All operators signed, verifying aggregate signature with total G1 pubkey");
         aggregated_g2_point
-            .verify_aggregated_signature::<Sha256Normalized, &[u8], G1Point>(
+            .verify_aggregated_signature::<Sha256Normalized>(
                 signature,
-                &message_32,
+                &digest,
                 total_aggregated_g1_pubkey,
             )
             .map_err(|_| NCNProgramError::SignatureVerificationFailed)?;
@@ -198,9 +199,9 @@ pub fn process_cast_vote(
         // One Pairing attempt
         msg!("Verifying aggregate signature one pairing");
         aggregated_g2_point
-            .verify_aggregated_signature::<Sha256Normalized, &[u8], G1Point>(
+            .verify_aggregated_signature::<Sha256Normalized>(
                 signature,
-                &message_32,
+                &digest,
                 apk1,
             )
             .map_err(|_| NCNProgramError::SignatureVerificationFailed)?;

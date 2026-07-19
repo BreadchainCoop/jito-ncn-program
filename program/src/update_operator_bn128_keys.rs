@@ -1,6 +1,7 @@
 use jito_bytemuck::AccountDeserialize;
 use jito_restaking_core::{ncn::Ncn, operator::Operator};
 use ncn_program_core::{
+    utils::pop_message_digest,
     config::Config,
     constants::{G1_COMPRESSED_POINT_SIZE, G2_COMPRESSED_POINT_SIZE},
     error::NCNProgramError,
@@ -113,10 +114,12 @@ pub fn process_update_operator_bn128_keys(
             return Err(ProgramError::from(NCNProgramError::BLSVerificationError));
         }
 
-        // Verify the BLS signature: the signature should be the new G1 pubkey signed by the new G2 private key
-        // The message being signed is the new G1 pubkey itself
+        // Verify the BLS proof-of-possession for the NEW key: the signature is
+        // over the domain-tagged digest binding (ncn, operator, new g1 pubkey),
+        // signed by the new G2 private key
+        let pop_digest = pop_message_digest(ncn.key, operator.key, &g1_pubkey);
         g2_point
-            .verify_signature::<Sha256Normalized, _, _>(signature, &g1_pubkey)
+            .verify_signature::<Sha256Normalized, _>(signature, &pop_digest)
             .map_err(|_| NCNProgramError::BLSVerificationError)?;
 
         msg!("BLS signature verification successful");

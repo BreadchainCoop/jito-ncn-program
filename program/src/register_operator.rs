@@ -5,6 +5,7 @@ use jito_jsm_core::{
 };
 use jito_restaking_core::{ncn::Ncn, ncn_operator_state::NcnOperatorState, operator::Operator};
 use ncn_program_core::{
+    utils::pop_message_digest,
     account_payer::AccountPayer,
     config::Config,
     constants::{G1_COMPRESSED_POINT_SIZE, G2_COMPRESSED_POINT_SIZE, MAX_OPERATORS},
@@ -122,18 +123,20 @@ pub fn process_register_operator(
         ));
     }
 
-    // Verify BLS signature: signature should be G1 pubkey signed by G2 private key
+    // Verify BLS proof-of-possession: signature over the domain-tagged digest
+    // binding (ncn, operator, g1_pubkey), signed by the G2 private key
     {
         let signature = G1Point::from(signature);
         let g2_compressed = G2CompressedPoint::from(g2_pubkey);
         let g2_point = G2Point::try_from(g2_compressed)
             .map_err(|_| NCNProgramError::G2PointDecompressionError)?;
 
+        let pop_digest = pop_message_digest(ncn.key, operator.key, &g1_pubkey);
         g2_point
-            .verify_operator_registeration(signature, g1_pubkey)
+            .verify_operator_registeration(signature, g1_pubkey, &pop_digest)
             .map_err(|_| NCNProgramError::BLSVerificationError)?;
 
-        msg!("BLS signature verification successful");
+        msg!("BLS proof-of-possession verification successful");
     }
 
     // Verify the ncn operator account PDA is correct

@@ -34,6 +34,7 @@ pub const DEFAULT_CONSENSUS_REACHED_SLOT: u64 = u64::MAX;
 pub const MAX_REALLOC_BYTES: u64 = MAX_PERMITTED_DATA_INCREASE as u64;
 
 pub const WEIGHT: u128 = 100;
+/// BN254 base-field modulus Fq (x/y coordinates live here).
 pub static MODULUS: UBig = unsafe {
     UBig::from_static_words(&[
         0x3c208c16d87cfd47,
@@ -42,6 +43,21 @@ pub static MODULUS: UBig = unsafe {
         0x30644e72e131a029,
     ])
 };
+
+/// BN254 group order Fr — the scalar field. Challenge scalars and secret keys
+/// must be reduced/sampled modulo THIS, not Fq (EigenLayer's BN254.FR_MODULUS):
+/// 0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001
+pub static FR_MODULUS: UBig = unsafe {
+    UBig::from_static_words(&[
+        0x43e1f593f0000001,
+        0x2833e84879b97091,
+        0xb85045b68181585d,
+        0x30644e72e131a029,
+    ])
+};
+
+/// Domain tag for the registration proof-of-possession message (exactly 32 bytes).
+pub const POP_MESSAGE_DOMAIN: &[u8; 32] = b"JITO-NCN-BN254-POP-REGISTER-V001";
 
 /// G1 generator point for alt-BN128 curve
 /// Point (1, 2) on the curve

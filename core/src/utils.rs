@@ -1,6 +1,8 @@
 use solana_program::program_error::ProgramError;
+use solana_program::pubkey::Pubkey;
 
-use crate::constants::MODULUS;
+use crate::constants::{FR_MODULUS, POP_MESSAGE_DOMAIN};
+use crate::schemes::MessageDigest;
 use crate::{constants::MAX_REALLOC_BYTES, error::NCNProgramError, snapshot::OperatorSnapshot};
 use dashu::integer::UBig;
 
@@ -47,38 +49,62 @@ pub fn can_operator_vote(operator_snapshot: OperatorSnapshot) -> bool {
     operator_snapshot.is_active() && operator_snapshot.has_minimum_stake()
 }
 
-/// Computes a scalar alpha by hashing together all prover-controlled inputs and reducing modulo the curve order.
-/// Inputs should be provided as byte slices or arrays (e.g., message, signature, aggregated_pubkey, apk2).
-/// Returns a 32-byte scalar (big-endian, mod curve order).
-pub fn compute_alpha(
-    message: &[u8; 64],
-    signature: &[u8; 64],
+/// Reduces a 32-byte big-endian hash modulo the BN254 group order Fr,
+/// returning a 32-byte big-endian scalar.
+fn reduce_mod_fr(hash: &[u8; 32]) -> [u8; 32] {
+    let reduced = UBig::from_be_bytes(hash) % FR_MODULUS.clone();
+    let mut out = [0u8; 32];
+    let be = reduced.to_be_bytes();
+    out[32 - be.len()..].copy_from_slice(&be);
+    out
+}
+
+/// EigenLayer-exact certificate challenge (BLSSignatureChecker.sol#L214):
+/// gamma = keccak256(msgDigest ‖ apk.X ‖ apk.Y ‖ apkG2.X[0] ‖ apkG2.X[1]
+/// ‖ apkG2.Y[0] ‖ apkG2.Y[1] ‖ sigma.X ‖ sigma.Y) mod FR_MODULUS.
+/// All coordinates are 32-byte big-endian words in abi.encodePacked order;
+/// the G2 byte layout in `apk_g2` already matches BN254.sol (c1 before c0).
+pub fn compute_certificate_gamma(
+    msg_digest: &[u8; 32],
     apk1: &[u8; 64],
-    apk2: &[u8; 128],
+    apk_g2: &[u8; 128],
+    sigma: &[u8; 64],
 ) -> [u8; 32] {
-    // Concatenate all inputs
-    let mut input = Vec::with_capacity(message.len() + signature.len() + apk1.len() + apk2.len());
-    input.extend_from_slice(message);
-    input.extend_from_slice(signature);
-    input.extend_from_slice(apk1);
-    input.extend_from_slice(apk2);
+    let hash = solana_program::keccak::hashv(&[msg_digest, apk1, apk_g2, sigma]).0;
+    reduce_mod_fr(&hash)
+}
 
-    // Hash the concatenated input
-    let hash = solana_nostd_sha256::hashv(&[&input]);
+/// Challenge scalar for the registration proof-of-possession, mirroring
+/// BLSApkRegistry.registerBLSPublicKey's packing order
+/// (signature, pubkeyG1, pubkeyG2, messagePoint), keccak256 mod Fr.
+/// The preimage length (320 bytes) differs from the certificate gamma's
+/// (288 bytes), so the two challenge domains cannot collide.
+pub fn compute_pop_gamma(
+    signature: &[u8; 64],
+    pubkey_g1: &[u8; 64],
+    pubkey_g2: &[u8; 128],
+    msg_point: &[u8; 64],
+) -> [u8; 32] {
+    let hash = solana_program::keccak::hashv(&[signature, pubkey_g1, pubkey_g2, msg_point]).0;
+    reduce_mod_fr(&hash)
+}
 
-    // Convert hash to UBig and reduce modulo MODULUS
-    let hash_ubig = UBig::from_be_bytes(&hash) % MODULUS.clone();
-    let mut alpha_bytes = [0u8; 32];
-    let hash_bytes = hash_ubig.to_be_bytes();
-    // Copy to 32 bytes, pad with zeros if needed
-    let pad = 32usize.saturating_sub(hash_bytes.len());
-    if pad > 0 {
-        alpha_bytes[..pad].fill(0);
-        alpha_bytes[pad..].copy_from_slice(&hash_bytes);
-    } else {
-        alpha_bytes.copy_from_slice(&hash_bytes[hash_bytes.len() - 32..]);
-    }
-    alpha_bytes
+/// The proof-of-possession message digest: binds the NCN, the operator, and
+/// the G1 key being registered, so a PoP observed on-chain cannot be replayed
+/// by a different operator or against a different NCN (EigenLayer binds the
+/// operator address into pubkeyRegistrationMessageHash for the same reason).
+pub fn pop_message_digest(
+    ncn: &Pubkey,
+    operator: &Pubkey,
+    g1_compressed: &[u8; 32],
+) -> MessageDigest {
+    let hash = solana_nostd_sha256::hashv(&[
+        POP_MESSAGE_DOMAIN,
+        ncn.as_ref(),
+        operator.as_ref(),
+        g1_compressed,
+    ]);
+    MessageDigest(hash)
 }
 
 /// Creates a bitmap representing which operators have signed, given their indices and the total number of operators.
@@ -112,4 +138,74 @@ pub fn create_signer_bitmap(non_signer_indices: &[usize], total_operators: usize
 
     // Return the constructed bitmap.
     bitmap
+}
+
+#[cfg(all(test, not(target_os = "solana")))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn certificate_gamma_is_reduced_mod_fr() {
+        // ~81% of random 256-bit hashes exceed Fr, so a small sweep must hit
+        // the reduction path; pre-fix (no reduction / mod-Fq) this diverges.
+        let mut exercised_reduction = false;
+        for seed in 0u8..32 {
+            let digest = [seed; 32];
+            let apk1 = [seed.wrapping_add(1); 64];
+            let apk2 = [seed.wrapping_add(2); 128];
+            let sigma = [seed.wrapping_add(3); 64];
+            let raw = solana_program::keccak::hashv(&[&digest, &apk1, &apk2, &sigma]).0;
+            let gamma = compute_certificate_gamma(&digest, &apk1, &apk2, &sigma);
+            assert!(
+                UBig::from_be_bytes(&gamma) < FR_MODULUS.clone(),
+                "gamma must be a valid Fr scalar"
+            );
+            if UBig::from_be_bytes(&raw) >= FR_MODULUS.clone() {
+                exercised_reduction = true;
+                assert_ne!(raw, gamma, "oversized hash must actually be reduced");
+            } else {
+                assert_eq!(raw, gamma, "in-range hash must pass through unchanged");
+            }
+        }
+        assert!(exercised_reduction, "sweep never exercised the reduction path");
+    }
+
+    #[test]
+    fn certificate_gamma_binds_every_input() {
+        let digest = [1u8; 32];
+        let apk1 = [2u8; 64];
+        let apk2 = [3u8; 128];
+        let sigma = [4u8; 64];
+        let base = compute_certificate_gamma(&digest, &apk1, &apk2, &sigma);
+        assert_ne!(base, compute_certificate_gamma(&[9u8; 32], &apk1, &apk2, &sigma));
+        assert_ne!(base, compute_certificate_gamma(&digest, &[9u8; 64], &apk2, &sigma));
+        assert_ne!(base, compute_certificate_gamma(&digest, &apk1, &[9u8; 128], &sigma));
+        assert_ne!(base, compute_certificate_gamma(&digest, &apk1, &apk2, &[9u8; 64]));
+    }
+
+    #[test]
+    fn pop_gamma_binds_every_input() {
+        let sig = [1u8; 64];
+        let g1 = [2u8; 64];
+        let g2 = [3u8; 128];
+        let msg = [4u8; 64];
+        let base = compute_pop_gamma(&sig, &g1, &g2, &msg);
+        assert!(UBig::from_be_bytes(&base) < FR_MODULUS.clone());
+        assert_ne!(base, compute_pop_gamma(&[9u8; 64], &g1, &g2, &msg));
+        assert_ne!(base, compute_pop_gamma(&sig, &[9u8; 64], &g2, &msg));
+        assert_ne!(base, compute_pop_gamma(&sig, &g1, &[9u8; 128], &msg));
+        assert_ne!(base, compute_pop_gamma(&sig, &g1, &g2, &[9u8; 64]));
+    }
+
+    #[test]
+    fn pop_digest_binds_ncn_operator_and_key() {
+        let ncn = Pubkey::new_unique();
+        let operator = Pubkey::new_unique();
+        let g1 = [5u8; 32];
+        let base = pop_message_digest(&ncn, &operator, &g1);
+        assert_eq!(base, pop_message_digest(&ncn, &operator, &g1));
+        assert_ne!(base, pop_message_digest(&Pubkey::new_unique(), &operator, &g1));
+        assert_ne!(base, pop_message_digest(&ncn, &Pubkey::new_unique(), &g1));
+        assert_ne!(base, pop_message_digest(&ncn, &operator, &[6u8; 32]));
+    }
 }

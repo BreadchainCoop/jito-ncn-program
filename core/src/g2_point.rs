@@ -23,20 +23,20 @@ use crate::{
     error::NCNProgramError,
     g1_point::{G1CompressedPoint, G1Point},
     privkey::PrivKey,
-    schemes::{BLSSignature, HashToCurve, Sha256Normalized},
-    utils::compute_alpha,
+    schemes::{BLSSignature, HashToCurve, MessageDigest, Sha256Normalized},
+    utils::{compute_certificate_gamma, compute_pop_gamma},
 };
 
 impl G2Point {
-    pub fn verify_signature<H: HashToCurve, T: AsRef<[u8]>, S: BLSSignature>(
+    pub fn verify_signature<H: HashToCurve, S: BLSSignature>(
         self,
         signature: S,
-        message: T,
+        digest: &MessageDigest,
     ) -> Result<(), NCNProgramError> {
         let mut input = [0u8; 384];
 
         // 1) Hash message to curve
-        input[..64].clone_from_slice(&H::try_hash_to_curve(message)?.0);
+        input[..64].clone_from_slice(&H::try_hash_to_curve(digest)?.0);
         // 2) Decompress our public key
         input[64..192].clone_from_slice(&self.0);
         // 3) Decompress our signature
@@ -57,17 +57,22 @@ impl G2Point {
         }
     }
 
+    /// Verifies the registration proof-of-possession: `signature` must be the
+    /// operator's BLS signature over `pop_digest` (which the caller builds via
+    /// `utils::pop_message_digest`, binding ncn + operator + g1 key), and the
+    /// challenge-combined pairing simultaneously proves the G1/G2 keys match.
     pub fn verify_operator_registeration(
         self,
         signature: G1Point,
         g1_pubkey: [u8; 32],
+        pop_digest: &MessageDigest,
     ) -> Result<(), NCNProgramError> {
         let g1_compressed = G1CompressedPoint::from(g1_pubkey);
         let g1_pubkey_point = G1Point::try_from(&g1_compressed)
             .map_err(|_| NCNProgramError::G1PointDecompressionError)?;
 
-        let message_hash = Sha256Normalized::try_hash_to_curve(g1_pubkey)?.0;
-        let alpha = compute_alpha(&message_hash, &signature.0, &g1_pubkey_point.0, &self.0);
+        let message_hash = Sha256Normalized::try_hash_to_curve(pop_digest)?.0;
+        let alpha = compute_pop_gamma(&signature.0, &g1_pubkey_point.0, &self.0, &message_hash);
 
         let scaled_g1_generator = G1Point::from(G1_GENERATOR).mul(alpha)?;
         let scaled_g1_pubkey = g1_pubkey_point.mul(alpha)?;
@@ -102,14 +107,19 @@ impl G2Point {
         }
     }
 
-    pub fn verify_aggregated_signature<H: HashToCurve, T: AsRef<[u8]>, S: BLSSignature>(
+    /// Verifies an aggregated certificate: one challenge-combined pairing
+    /// proving both the aggregate signature over `digest` and the consistency
+    /// of the supplied aggregate G2 key with `apk1`. The challenge is
+    /// EigenLayer's exact gamma (keccak over digest‖apk‖apkG2‖sigma, mod Fr).
+    pub fn verify_aggregated_signature<H: HashToCurve>(
         self,
         aggregated_signature: G1Point,
-        message: T,
+        digest: &MessageDigest,
         apk1: G1Point,
     ) -> Result<(), NCNProgramError> {
-        let message_hash = H::try_hash_to_curve(message)?.0;
-        let alpha = compute_alpha(&message_hash, &aggregated_signature.0, &apk1.0, &self.0);
+        let message_hash = H::try_hash_to_curve(digest)?.0;
+        let alpha =
+            compute_certificate_gamma(&digest.0, &apk1.0, &self.0, &aggregated_signature.0);
 
         let scaled_g1 = G1Point::from(G1_GENERATOR).mul(alpha)?;
         let scaled_aggregated_g1 = apk1.mul(alpha)?;
@@ -185,15 +195,15 @@ impl CheckedAdd for G2Point {
 }
 
 impl G2CompressedPoint {
-    pub fn verify_signature<H: HashToCurve, T: AsRef<[u8]>, S: BLSSignature>(
+    pub fn verify_signature<H: HashToCurve, S: BLSSignature>(
         self,
         signature: S,
-        message: T,
+        digest: &MessageDigest,
     ) -> Result<(), NCNProgramError> {
         let mut input = [0u8; 384];
 
         // 1) Hash message to curve
-        input[..64].clone_from_slice(&H::try_hash_to_curve(message)?.0);
+        input[..64].clone_from_slice(&H::try_hash_to_curve(digest)?.0);
         // 2) Decompress our public key
         input[64..192].clone_from_slice(&G2Point::try_from(self)?.0);
         // 3) Decompress our signature
