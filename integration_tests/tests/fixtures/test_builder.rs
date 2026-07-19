@@ -269,11 +269,7 @@ impl TestBuilder {
         let mint_amount: u64 = sol_to_lamports(100_000_000.0);
 
         let should_generate = token_mint.is_none();
-        let pass_through = if token_mint.is_some() {
-            token_mint.unwrap()
-        } else {
-            Keypair::new()
-        };
+        let pass_through = token_mint.unwrap_or_else(Keypair::new);
 
         for _ in 0..vault_count {
             let pass_through = if should_generate {
@@ -527,7 +523,6 @@ impl TestBuilder {
 
         let clock = self.clock().await;
         let slot = clock.slot;
-        let epoch = clock.epoch;
         let ncn = test_ncn.ncn_root.ncn_pubkey;
 
         let operators_for_update = test_ncn
@@ -605,6 +600,7 @@ impl TestBuilder {
     /// Performs all necessary steps to snapshot the state of the TestNcn for the current epoch.
     /// Initializes epoch state, snapshot, operator snapshots, and VOD snapshots.
     // Intermission 2 - all snapshots are taken
+    #[allow(dead_code)]
     pub async fn snapshot_test_ncn(&mut self, test_ncn: &TestNcn) -> TestResult<()> {
         self.add_snapshot_to_test_ncn(test_ncn).await?;
 

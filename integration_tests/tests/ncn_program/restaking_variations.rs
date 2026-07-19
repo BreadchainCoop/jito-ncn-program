@@ -13,7 +13,6 @@ mod tests {
     async fn test_removing_operator() -> TestResult<()> {
         let mut fixture = TestBuilder::new().await;
         let mut restaking_client = fixture.restaking_program_client();
-        let mut ncn_program_client = fixture.ncn_program_client();
 
         const OPERATOR_COUNT: usize = 3;
         const OPERATOR_FEE_BPS: u16 = MAX_FEE_BPS;
@@ -138,7 +137,6 @@ mod tests {
         }
 
         {
-            let epoch = fixture.clock().await.epoch;
             let ncn = test_ncn.ncn_root.ncn_pubkey;
 
             let operator = test_ncn.operators[0].operator_pubkey;

@@ -229,7 +229,6 @@ mod tests {
 
         let clock = fixture.clock().await;
         let slot = clock.slot;
-        let epoch = clock.epoch;
         let ncn = test_ncn.ncn_root.ncn_pubkey;
 
         let operators_to_skip_indexes = vec![1, 9];

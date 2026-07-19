@@ -87,7 +87,7 @@ mod fuzz_tests {
         // 2.c. Initialize vaults and establish NCN <> vaults and vault <> operator relationships
         {
             // Create vaults for each mint according to the configuration
-            for (_mint_idx, mint_config) in config.mints.iter().enumerate() {
+            for mint_config in config.mints.iter() {
                 fixture
                     .add_vaults_to_test_ncn(
                         &mut test_ncn,

@@ -11,6 +11,7 @@ pub mod vault_client;
 pub type TestResult<T> = Result<T, TestError>;
 
 #[derive(Error, Debug)]
+#[allow(clippy::enum_variant_names)]
 pub enum TestError {
     #[error(transparent)]
     BanksClientError(#[from] BanksClientError),

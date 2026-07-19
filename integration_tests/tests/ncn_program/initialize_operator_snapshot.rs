@@ -2,7 +2,6 @@
 mod tests {
 
     use ncn_program_core::{
-        error::NCNProgramError,
         g1_point::{G1CompressedPoint, G1Point},
         g2_point::G2CompressedPoint,
         schemes::Sha256Normalized,
@@ -10,9 +9,7 @@ mod tests {
         utils::pop_message_digest,
     };
 
-    use crate::fixtures::{
-        ncn_program_client::assert_ncn_program_error, test_builder::TestBuilder, TestResult,
-    };
+    use crate::fixtures::{test_builder::TestBuilder, TestResult};
 
     #[tokio::test]
     async fn test_initialize_operator_snapshot() -> TestResult<()> {
@@ -23,8 +20,6 @@ mod tests {
 
         fixture.warp_slot_incremental(1000).await?;
 
-        let clock = fixture.clock().await;
-        let epoch = clock.epoch;
         let ncn = test_ncn.ncn_root.ncn_pubkey;
         let operator = test_ncn.operators[0].operator_pubkey;
 
