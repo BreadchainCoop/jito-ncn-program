@@ -514,6 +514,10 @@ impl OperatorSnapshot {
         next_epoch_stake_weights: &StakeWeights,
         minimum_stake: &StakeWeights,
     ) -> Result<(), NCNProgramError> {
+        if !self.is_active() {
+            return Err(NCNProgramError::OperatorSnapshotIsNotActive);
+        }
+
         self.set_stake_weight(stake_weights);
         self.set_next_epoch_stake_weight(next_epoch_stake_weights);
 

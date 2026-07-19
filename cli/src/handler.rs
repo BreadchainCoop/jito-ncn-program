@@ -295,7 +295,7 @@ impl CliHandler {
                             Some(g1.as_str()),
                             Some(g2.as_str()),
                         )?;
-                        let signature = generate_signature(&key_set)?;
+                        let signature = generate_signature(&key_set, self.ncn()?)?;
 
                         (key_set.g1_pubkey, key_set.g2_pubkey, signature)
                     }
@@ -304,7 +304,7 @@ impl CliHandler {
                         use crate::bls_keys::{generate_or_use_keys, generate_signature};
 
                         let key_set = generate_or_use_keys(&operator, &keys_file, None, None)?;
-                        let signature = generate_signature(&key_set)?;
+                        let signature = generate_signature(&key_set, self.ncn()?)?;
 
                         (key_set.g1_pubkey, key_set.g2_pubkey, signature)
                     }

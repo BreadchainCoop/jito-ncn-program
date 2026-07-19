@@ -4,12 +4,13 @@ use ncn_program_core::{
     g1_point::{G1CompressedPoint, G1Point},
     g2_point::{G2CompressedPoint, G2Point},
     privkey::PrivKey,
-    schemes::Sha256Normalized,
+    schemes::{MessageDigest, Sha256Normalized},
+    utils::pop_message_digest,
 };
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use solana_sdk::pubkey::Pubkey;
-use std::{fs, path::Path};
+use std::{fs, path::Path, str::FromStr};
 
 /// BLS key set for an operator
 #[serde_as]
@@ -67,18 +68,23 @@ pub fn generate_bls_keypair(operator: &Pubkey) -> Result<BlsKeySet> {
     })
 }
 
-/// Generate BLS signature by signing the G1 public key
-pub fn generate_signature(key_set: &BlsKeySet) -> Result<[u8; 64]> {
+/// Generate the registration proof-of-possession signature: signs the
+/// domain-tagged digest binding (ncn, operator, g1_pubkey) — must match the
+/// program's `pop_message_digest` exactly.
+pub fn generate_signature(key_set: &BlsKeySet, ncn: &Pubkey) -> Result<[u8; 64]> {
     let privkey = PrivKey(key_set.private_key);
+    let operator = Pubkey::from_str(&key_set.operator)
+        .map_err(|e| anyhow!("Invalid operator pubkey in key set: {}", e))?;
 
+    let pop_digest = pop_message_digest(ncn, &operator, &key_set.g1_pubkey);
     let signature = privkey
-        .sign::<Sha256Normalized, &[u8; 32]>(&key_set.g1_pubkey)
+        .sign::<Sha256Normalized>(&pop_digest)
         .map_err(|e| anyhow!("Failed to generate signature: {:?}", e))?;
 
     Ok(signature.0)
 }
 
-/// Generate BLS signature from private key and message
+/// Generate BLS signature from private key over a 32-byte message digest
 pub fn generate_signature_from_private_key(
     private_key: &[u8; 32],
     message: &[u8; 32],
@@ -86,7 +92,7 @@ pub fn generate_signature_from_private_key(
     let privkey = PrivKey(*private_key);
 
     let signature = privkey
-        .sign::<Sha256Normalized, &[u8; 32]>(message)
+        .sign::<Sha256Normalized>(&MessageDigest(*message))
         .map_err(|e| anyhow!("Failed to generate signature: {:?}", e))?;
 
     Ok(signature.0)
@@ -354,7 +360,7 @@ mod tests {
         assert_ne!(key_set.g2_pubkey, [0u8; 64]);
 
         // Verify we can generate signature
-        let signature = generate_signature(&key_set).unwrap();
+        let signature = generate_signature(&key_set, &Pubkey::new_unique()).unwrap();
         assert_ne!(signature, [0u8; 64]);
     }
 
