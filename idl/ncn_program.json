@@ -610,6 +610,12 @@
           "type": {
             "option": "u128"
           }
+        },
+        {
+          "name": "consensusThresholdBps",
+          "type": {
+            "option": "u16"
+          }
         }
       ],
       "discriminant": {
@@ -742,6 +748,12 @@
             "name": "minimumStake",
             "type": {
               "defined": "StakeWeights"
+            }
+          },
+          {
+            "name": "consensusThresholdBps",
+            "type": {
+              "defined": "PodU16"
             }
           }
         ]
@@ -1775,6 +1787,11 @@
       "code": 8805,
       "name": "InvalidOperatorCount",
       "msg": "Invalid operator count"
+    },
+    {
+      "code": 8806,
+      "name": "InvalidConsensusThresholdBps",
+      "msg": "Invalid consensus threshold bps"
     }
   ],
   "metadata": {

@@ -14,6 +14,8 @@ import {
   getStructEncoder,
   getU128Decoder,
   getU128Encoder,
+  getU16Decoder,
+  getU16Encoder,
   getU64Decoder,
   getU64Encoder,
   getU8Decoder,
@@ -73,6 +75,7 @@ export type AdminSetParametersInstructionData = {
   epochsAfterConsensusBeforeClose: Option<bigint>;
   validSlotsAfterConsensus: Option<bigint>;
   minimumStake: Option<bigint>;
+  consensusThresholdBps: Option<number>;
 };
 
 export type AdminSetParametersInstructionDataArgs = {
@@ -81,6 +84,7 @@ export type AdminSetParametersInstructionDataArgs = {
   epochsAfterConsensusBeforeClose: OptionOrNullable<number | bigint>;
   validSlotsAfterConsensus: OptionOrNullable<number | bigint>;
   minimumStake: OptionOrNullable<number | bigint>;
+  consensusThresholdBps: OptionOrNullable<number>;
 };
 
 export function getAdminSetParametersInstructionDataEncoder(): Encoder<AdminSetParametersInstructionDataArgs> {
@@ -92,6 +96,7 @@ export function getAdminSetParametersInstructionDataEncoder(): Encoder<AdminSetP
       ['epochsAfterConsensusBeforeClose', getOptionEncoder(getU64Encoder())],
       ['validSlotsAfterConsensus', getOptionEncoder(getU64Encoder())],
       ['minimumStake', getOptionEncoder(getU128Encoder())],
+      ['consensusThresholdBps', getOptionEncoder(getU16Encoder())],
     ]),
     (value) => ({ ...value, discriminator: ADMIN_SET_PARAMETERS_DISCRIMINATOR })
   );
@@ -105,6 +110,7 @@ export function getAdminSetParametersInstructionDataDecoder(): Decoder<AdminSetP
     ['epochsAfterConsensusBeforeClose', getOptionDecoder(getU64Decoder())],
     ['validSlotsAfterConsensus', getOptionDecoder(getU64Decoder())],
     ['minimumStake', getOptionDecoder(getU128Decoder())],
+    ['consensusThresholdBps', getOptionDecoder(getU16Decoder())],
   ]);
 }
 
@@ -131,6 +137,7 @@ export type AdminSetParametersInput<
   epochsAfterConsensusBeforeClose: AdminSetParametersInstructionDataArgs['epochsAfterConsensusBeforeClose'];
   validSlotsAfterConsensus: AdminSetParametersInstructionDataArgs['validSlotsAfterConsensus'];
   minimumStake: AdminSetParametersInstructionDataArgs['minimumStake'];
+  consensusThresholdBps: AdminSetParametersInstructionDataArgs['consensusThresholdBps'];
 };
 
 export function getAdminSetParametersInstruction<

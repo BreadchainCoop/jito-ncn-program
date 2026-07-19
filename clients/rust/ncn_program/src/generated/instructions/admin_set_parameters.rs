@@ -82,6 +82,7 @@ pub struct AdminSetParametersInstructionArgs {
     pub epochs_after_consensus_before_close: Option<u64>,
     pub valid_slots_after_consensus: Option<u64>,
     pub minimum_stake: Option<u128>,
+    pub consensus_threshold_bps: Option<u16>,
 }
 
 /// Instruction builder for `AdminSetParameters`.
@@ -101,6 +102,7 @@ pub struct AdminSetParametersBuilder {
     epochs_after_consensus_before_close: Option<u64>,
     valid_slots_after_consensus: Option<u64>,
     minimum_stake: Option<u128>,
+    consensus_threshold_bps: Option<u16>,
     __remaining_accounts: Vec<solana_program::instruction::AccountMeta>,
 }
 
@@ -156,6 +158,12 @@ impl AdminSetParametersBuilder {
         self.minimum_stake = Some(minimum_stake);
         self
     }
+    /// `[optional argument]`
+    #[inline(always)]
+    pub fn consensus_threshold_bps(&mut self, consensus_threshold_bps: u16) -> &mut Self {
+        self.consensus_threshold_bps = Some(consensus_threshold_bps);
+        self
+    }
     /// Add an additional account to the instruction.
     #[inline(always)]
     pub fn add_remaining_account(
@@ -187,6 +195,7 @@ impl AdminSetParametersBuilder {
             epochs_after_consensus_before_close: self.epochs_after_consensus_before_close.clone(),
             valid_slots_after_consensus: self.valid_slots_after_consensus.clone(),
             minimum_stake: self.minimum_stake.clone(),
+            consensus_threshold_bps: self.consensus_threshold_bps.clone(),
         };
 
         accounts.instruction_with_remaining_accounts(args, &self.__remaining_accounts)
@@ -335,6 +344,7 @@ impl<'a, 'b> AdminSetParametersCpiBuilder<'a, 'b> {
             epochs_after_consensus_before_close: None,
             valid_slots_after_consensus: None,
             minimum_stake: None,
+            consensus_threshold_bps: None,
             __remaining_accounts: Vec::new(),
         });
         Self { instruction }
@@ -394,6 +404,12 @@ impl<'a, 'b> AdminSetParametersCpiBuilder<'a, 'b> {
         self.instruction.minimum_stake = Some(minimum_stake);
         self
     }
+    /// `[optional argument]`
+    #[inline(always)]
+    pub fn consensus_threshold_bps(&mut self, consensus_threshold_bps: u16) -> &mut Self {
+        self.instruction.consensus_threshold_bps = Some(consensus_threshold_bps);
+        self
+    }
     /// Add an additional account to the instruction.
     #[inline(always)]
     pub fn add_remaining_account(
@@ -444,6 +460,7 @@ impl<'a, 'b> AdminSetParametersCpiBuilder<'a, 'b> {
                 .clone(),
             valid_slots_after_consensus: self.instruction.valid_slots_after_consensus.clone(),
             minimum_stake: self.instruction.minimum_stake.clone(),
+            consensus_threshold_bps: self.instruction.consensus_threshold_bps.clone(),
         };
         let instruction = AdminSetParametersCpi {
             __program: self.instruction.__program,
@@ -473,6 +490,7 @@ struct AdminSetParametersCpiBuilderInstruction<'a, 'b> {
     epochs_after_consensus_before_close: Option<u64>,
     valid_slots_after_consensus: Option<u64>,
     minimum_stake: Option<u128>,
+    consensus_threshold_bps: Option<u16>,
     /// Additional instruction accounts `(AccountInfo, is_writable, is_signer)`.
     __remaining_accounts: Vec<(
         &'b solana_program::account_info::AccountInfo<'a>,

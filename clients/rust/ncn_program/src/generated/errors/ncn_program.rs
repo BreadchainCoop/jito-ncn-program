@@ -355,6 +355,9 @@ pub enum NcnProgramError {
     /// 8805 - Invalid operator count
     #[error("Invalid operator count")]
     InvalidOperatorCount = 0x2265,
+    /// 8806 - Invalid consensus threshold bps
+    #[error("Invalid consensus threshold bps")]
+    InvalidConsensusThresholdBps = 0x2266,
 }
 
 impl solana_program::program_error::PrintProgramError for NcnProgramError {

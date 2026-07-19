@@ -244,6 +244,8 @@ export const NCN_PROGRAM_ERROR__N_C_N_OPERATOR_ACCOUNT_DOSENT_EXIST = 0x2263; //
 export const NCN_PROGRAM_ERROR__NO_OPERATORS_REGISTERED = 0x2264; // 8804
 /** InvalidOperatorCount: Invalid operator count */
 export const NCN_PROGRAM_ERROR__INVALID_OPERATOR_COUNT = 0x2265; // 8805
+/** InvalidConsensusThresholdBps: Invalid consensus threshold bps */
+export const NCN_PROGRAM_ERROR__INVALID_CONSENSUS_THRESHOLD_BPS = 0x2266; // 8806
 
 export type NcnProgramError =
   | typeof NCN_PROGRAM_ERROR__ACCOUNT_ALREADY_INITIALIZED
@@ -298,6 +300,7 @@ export type NcnProgramError =
   | typeof NCN_PROGRAM_ERROR__INVALID_ACCOUNT_STATUS
   | typeof NCN_PROGRAM_ERROR__INVALID_ACCOUNT_TO_CLOSE_DISCRIMINATOR
   | typeof NCN_PROGRAM_ERROR__INVALID_BASE_FEE_GROUP
+  | typeof NCN_PROGRAM_ERROR__INVALID_CONSENSUS_THRESHOLD_BPS
   | typeof NCN_PROGRAM_ERROR__INVALID_EPOCHS_BEFORE_CLOSE
   | typeof NCN_PROGRAM_ERROR__INVALID_EPOCHS_BEFORE_STALL
   | typeof NCN_PROGRAM_ERROR__INVALID_G1_PUBKEY
@@ -417,6 +420,7 @@ if (process.env.NODE_ENV !== 'production') {
     [NCN_PROGRAM_ERROR__INVALID_ACCOUNT_STATUS]: `Invalid Account Status`,
     [NCN_PROGRAM_ERROR__INVALID_ACCOUNT_TO_CLOSE_DISCRIMINATOR]: `Invalid account_to_close Discriminator`,
     [NCN_PROGRAM_ERROR__INVALID_BASE_FEE_GROUP]: `Not a valid base fee group`,
+    [NCN_PROGRAM_ERROR__INVALID_CONSENSUS_THRESHOLD_BPS]: `Invalid consensus threshold bps`,
     [NCN_PROGRAM_ERROR__INVALID_EPOCHS_BEFORE_CLOSE]: `Invalid epochs before accounts can close`,
     [NCN_PROGRAM_ERROR__INVALID_EPOCHS_BEFORE_STALL]: `Invalid epochs before stall`,
     [NCN_PROGRAM_ERROR__INVALID_G1_PUBKEY]: `Invalid G1 Pubkey`,

@@ -32,6 +32,7 @@ pub struct Config {
     pub fee_config: FeeConfig,
     pub bump: u8,
     pub minimum_stake: StakeWeights,
+    pub consensus_threshold_bps: u16,
 }
 
 impl Config {

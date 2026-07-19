@@ -17,6 +17,8 @@ import {
   getAddressEncoder,
   getStructDecoder,
   getStructEncoder,
+  getU16Decoder,
+  getU16Encoder,
   getU64Decoder,
   getU64Encoder,
   getU8Decoder,
@@ -54,6 +56,7 @@ export type Config = {
   feeConfig: FeeConfig;
   bump: number;
   minimumStake: StakeWeights;
+  consensusThresholdBps: number;
 };
 
 export type ConfigArgs = {
@@ -67,6 +70,7 @@ export type ConfigArgs = {
   feeConfig: FeeConfigArgs;
   bump: number;
   minimumStake: StakeWeightsArgs;
+  consensusThresholdBps: number;
 };
 
 export function getConfigEncoder(): Encoder<ConfigArgs> {
@@ -81,6 +85,7 @@ export function getConfigEncoder(): Encoder<ConfigArgs> {
     ['feeConfig', getFeeConfigEncoder()],
     ['bump', getU8Encoder()],
     ['minimumStake', getStakeWeightsEncoder()],
+    ['consensusThresholdBps', getU16Encoder()],
   ]);
 }
 
@@ -96,6 +101,7 @@ export function getConfigDecoder(): Decoder<Config> {
     ['feeConfig', getFeeConfigDecoder()],
     ['bump', getU8Decoder()],
     ['minimumStake', getStakeWeightsDecoder()],
+    ['consensusThresholdBps', getU16Decoder()],
   ]);
 }
 
