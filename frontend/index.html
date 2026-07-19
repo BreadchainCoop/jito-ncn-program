@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gas Killer · On-chain LLM · Solana</title>
+<link rel="icon" href="icon.png" type="image/png">
+<link rel="apple-touch-icon" href="apple-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Chakra+Petch:ital,wght@0,400;0,600;1,400;1,600&display=swap" rel="stylesheet">
+<style>
+  /* GK brand (black / zinc / emerald / orange, Chakra Petch display, Space
+     Grotesk body) restyled with the bread-ui-kit design language: poster-weight
+     uppercase display type, 2px ink borders, SOLID hard-offset "lifted" shadows
+     with press-down actives, chip components. Dark-mode translation of the
+     kit's paper/ink system: ink shadows are solid deep tones, never blurs. */
+  :root {
+    --bg: #000; --panel: #09090b; --panel2: #131316;
+    --line: #26262c; --line2: #34343c;
+    --text: #e4e4e7; --dim: #a1a1aa; --acc: #34d399; --acc2: #fb923c;
+    --good: #4ade80; --bad: #f87171; --warn: #fbbf24;
+    /* solid shadow inks (the kit's #595959 hard shadow, GK-toned) */
+    --ink: #1b1b21; --ink-acc: #0a4534; --ink-warm: #4a2a10;
+    --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    --display: "Chakra Petch", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  ::selection { background: var(--acc); color: #022c22; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.55 "Space Grotesk", -apple-system, "Segoe UI", sans-serif;
+         background-image: radial-gradient(rgba(255,255,255,.07) 1px, transparent 1px);
+         background-size: 32px 32px; }
+  /* topbar */
+  header { padding: 14px 28px; border-bottom: 2px solid var(--line);
+           display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+           background: rgba(0,0,0,.78); backdrop-filter: blur(6px); }
+  .wordmark { height: 38px; width: auto; display: block; }
+  header .links { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+  header .links a { color: var(--dim); text-decoration: none; font-family: var(--display);
+    font-size: 12px; text-transform: uppercase; letter-spacing: .15em; padding: 7px 12px;
+    border: 1px solid transparent; transition: all .12s ease; }
+  header .links a:hover { color: var(--text); border-color: var(--line2);
+    background: var(--panel); box-shadow: 3px 3px 0 var(--ink);
+    transform: translate(-1px,-1px); }
+  /* hero — kit text-h1: massive, black-weight, uppercase, tight */
+  .hero { position: relative; text-align: center; padding: 52px 24px 44px; overflow: hidden;
+          border-bottom: 2px solid var(--line); }
+  .hero .eclipse { width: 180px; height: auto; display: block; margin: 0 auto 4px;
+    filter: drop-shadow(0 0 60px rgba(52,211,153,.18)); }
+  .kicker { font-family: var(--display); font-style: italic; font-size: 11px;
+    text-transform: uppercase; letter-spacing: .34em; color: var(--acc2); margin: 0 0 18px; }
+  .hero h1 { margin: 0 auto 16px; font-family: var(--display); font-weight: 700;
+    font-size: clamp(30px, 5.6vw, 58px); line-height: 1.04; letter-spacing: -.015em;
+    text-transform: uppercase; max-width: 880px; color: #fff; }
+  .hero h1 .gk { color: var(--acc); }
+  .hero .sub { color: var(--dim); font-size: 15.5px; max-width: 680px; margin: 0 auto 24px; }
+  .hero .sub a { color: var(--acc); text-decoration: none; border-bottom: 1px solid rgba(52,211,153,.4); }
+  .statrow { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .statchip { font-family: var(--mono); font-size: 11.5px; color: var(--dim);
+    border: 1px solid var(--line2); background: var(--panel); padding: 8px 13px;
+    box-shadow: 3px 3px 0 var(--ink); transition: all .12s ease; }
+  .statchip:hover { transform: translate(-1px,-1px); box-shadow: 4px 4px 0 var(--ink);
+    color: var(--text); }
+  .statchip b { color: var(--acc); font-weight: 600; }
+  nav { display: flex; gap: 8px; padding: 14px 28px 0; border-bottom: 2px solid var(--line); }
+  nav button { background: none; border: 1px solid transparent; border-bottom: none;
+               color: var(--dim); font-size: 13px;
+               font-family: var(--display); text-transform: uppercase; letter-spacing: .14em;
+               padding: 10px 16px; cursor: pointer; margin-bottom: -2px;
+               border-bottom: 2px solid transparent; }
+  nav button:hover { color: var(--text); }
+  nav button.on { color: var(--acc); border-bottom-color: var(--acc);
+                  background: var(--panel); border-left: 1px solid var(--line);
+                  border-right: 1px solid var(--line); border-top: 1px solid var(--line); }
+  main { max-width: 1060px; margin: 0 auto; padding: 24px 28px 40px; }
+  .tab { display: none; } .tab.on { display: block; }
+
+  /* ---- animated pipeline + step visuals ---- */
+  .pipeviz { max-width: 880px; margin: 28px auto 0; border: 2px solid var(--line2);
+    background: var(--panel); box-shadow: 6px 6px 0 var(--ink-acc); padding: 20px 22px 14px;
+    text-align: center; }
+  .pv-row { display: flex; align-items: center; justify-content: center; gap: 12px;
+    flex-wrap: wrap; }
+  .pv-node { border: 1.5px solid var(--line2); background: var(--panel2);
+    padding: 9px 12px; font-family: var(--mono); font-size: 11px; color: var(--text);
+    box-shadow: 3px 3px 0 var(--ink); flex: none; }
+  .pv-node .t { display: block; color: var(--dim); font-size: 9px; margin-top: 4px;
+    letter-spacing: .12em; text-transform: uppercase; font-family: var(--display); }
+  .pv-flow { position: relative; width: 42px; height: 8px; flex: none; }
+  .pv-flow span { position: absolute; top: 50%; left: 0; width: 6px; height: 6px;
+    margin-top: -3px; background: var(--acc); animation: pvflow 1.8s linear infinite; }
+  .pv-flow span:nth-child(2) { animation-delay: .6s; }
+  .pv-flow span:nth-child(3) { animation-delay: 1.2s; }
+  @keyframes pvflow { 0% { left: 0; opacity: 0 } 15% { opacity: 1 }
+    85% { opacity: 1 } 100% { left: calc(100% - 6px); opacity: 0 } }
+  .pv-grid { display: grid; grid-template-columns: repeat(8, 13px); gap: 3px;
+    flex: none; padding: 4px; }
+  .pv-grid i { width: 13px; height: 13px; background: #1a2130;
+    animation: pvseg 7s linear infinite; }
+  @keyframes pvseg { 0%, 4% { background: #1a2130 } 6%, 85% { background: var(--acc) }
+    90%, 100% { background: #1a2130 } }
+  .pv-late { animation: pvpop 7s linear infinite; }
+  @keyframes pvpop { 0%, 66% { border-color: var(--line2); color: var(--dim) }
+    70%, 92% { border-color: var(--acc); color: var(--acc);
+      box-shadow: 3px 3px 0 var(--ink-acc) } 96%, 100% { border-color: var(--line2) } }
+  .pv-cap { font-family: var(--mono); font-size: 10.5px; color: var(--dim);
+    margin: 14px 0 0; }
+  /* step mini-visuals */
+  .sv { display: flex; align-items: center; justify-content: center; gap: 10px;
+    flex-wrap: wrap; margin: 14px 0 12px; min-height: 74px; }
+  .tokrow { display: flex; gap: 4px; flex: none; }
+  .tokrow i { font-style: normal; font-family: var(--mono); font-size: 10.5px;
+    color: var(--acc); border: 1px solid #1e5a37; background: #0b241a;
+    padding: 4px 6px; animation: tokpop 4.5s linear infinite; }
+  .tokrow i:nth-child(2) { animation-delay: .25s } .tokrow i:nth-child(3) { animation-delay: .5s }
+  .tokrow i:nth-child(4) { animation-delay: .75s }
+  @keyframes tokpop { 0%, 8% { opacity: 0; transform: translateY(4px) }
+    14%, 88% { opacity: 1; transform: none } 94%, 100% { opacity: 0 } }
+  .op { border: 1.5px solid var(--line2); background: var(--panel2); flex: none;
+    padding: 7px 9px 8px; font-family: var(--mono); font-size: 10px; color: var(--dim);
+    box-shadow: 3px 3px 0 var(--ink); }
+  .op b { display: block; width: 52px; height: 6px; background: #1a2130;
+    margin-top: 6px; overflow: hidden; }
+  .op b i { display: block; height: 100%; width: 100%; background: var(--acc);
+    transform-origin: left; animation: opfill 4.5s linear infinite; }
+  .op:nth-child(2) b i { animation-delay: .3s } .op:nth-child(3) b i { animation-delay: .6s }
+  @keyframes opfill { 0% { transform: scaleX(0) } 55% { transform: scaleX(1) }
+    92% { transform: scaleX(1) } 100% { transform: scaleX(0) } }
+  .agree { font-family: var(--mono); font-size: 10.5px; color: var(--good); flex: none;
+    border: 1px solid #1e5a37; background: #0b241a; padding: 5px 8px;
+    animation: agreeon 4.5s linear infinite; }
+  @keyframes agreeon { 0%, 58% { opacity: .25 } 66%, 92% { opacity: 1 } 100% { opacity: .25 } }
+  .gasbar { position: relative; flex: none; height: 22px; border: 1.5px solid var(--line2);
+    background: repeating-linear-gradient(-45deg, #2a1607 0 6px, #3a1e09 6px 12px);
+    display: flex; align-items: center; justify-content: center; }
+  .gasbar span { font-family: var(--mono); font-size: 9.5px; color: var(--acc2);
+    white-space: nowrap; padding: 0 6px; }
+  .gasbar.big { width: 118px; }
+  .gasbar.tiny { width: 48px; border-color: #1e5a37; background: #0b241a;
+    animation: agreeon 4.5s linear infinite; }
+  .gasbar.tiny span { color: var(--acc); }
+  .cap { font-family: var(--mono); font-size: 10.5px; color: var(--dim);
+    margin: 0; line-height: 1.6; }
+  @media (prefers-reduced-motion: reduce) {
+    .pv-flow span, .pv-grid i, .pv-late, .tokrow i, .op b i, .agree, .gasbar.tiny
+      { animation: none; }
+    .pv-grid i { background: var(--acc); } .agree { opacity: 1; }
+  }
+
+  /* ---- chat ---- */
+  .row { display: flex; gap: 20px; flex-wrap: wrap; }
+  .col { flex: 1 1 460px; min-width: 380px; }
+  /* kit lifted panels: 2px ink border, square edges, SOLID offset shadow */
+  .card { background: var(--panel); border: 2px solid var(--line2); border-radius: 0;
+          padding: 18px 20px; margin-bottom: 20px;
+          box-shadow: 6px 6px 0 var(--ink-acc); transition: all .15s ease; }
+  .card:hover { box-shadow: 8px 8px 0 var(--ink-acc); transform: translate(-2px,-2px); }
+  .card h3 { margin: 0 0 12px; font-size: 12.5px; color: var(--dim); font-weight: 600;
+             font-family: var(--display); font-style: italic;
+             text-transform: uppercase; letter-spacing: .3em; }
+  /* how-it-works steps — kit poster cards with oversized numerals */
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+           gap: 20px; margin: 4px 0 24px; }
+  .step { background: var(--panel); border: 2px solid var(--line2); padding: 18px;
+          box-shadow: 6px 6px 0 var(--ink-warm); transition: all .15s ease;
+          position: relative; overflow: hidden; }
+  .step:hover { box-shadow: 8px 8px 0 var(--ink-warm); transform: translate(-2px,-2px); }
+  .step .big { position: absolute; top: -14px; right: 2px; font-family: var(--display);
+               font-weight: 700; font-size: 74px; line-height: 1; color: var(--acc2);
+               opacity: .13; pointer-events: none; }
+  .step .n { font-family: var(--display); font-size: 11.5px; letter-spacing: .28em;
+             color: var(--acc2); text-transform: uppercase; }
+  .step h4 { margin: 9px 0 7px; font-family: var(--display); font-weight: 700;
+             font-size: 18px; color: #fff; text-transform: uppercase;
+             letter-spacing: .01em; }
+  .step p { margin: 0; font-size: 12.5px; color: var(--dim); line-height: 1.65; }
+  /* footer */
+  footer { border-top: 2px solid var(--line); margin-top: 30px; padding: 26px 28px 40px; }
+  footer .fh { margin: 0 0 10px; font-size: 12.5px; color: var(--dim); font-weight: 600;
+    font-family: var(--display); font-style: italic; text-transform: uppercase;
+    letter-spacing: .3em; }
+  footer .inner { max-width: 1060px; margin: 0 auto; display: flex; gap: 24px;
+                  flex-wrap: wrap; align-items: center; justify-content: space-between; }
+  footer .tagline { color: var(--dim); font-size: 13px; }
+  footer .tagline b { color: var(--text); font-family: var(--display); }
+  footer .flinks { display: flex; gap: 16px; flex-wrap: wrap; }
+  footer .flinks a { color: var(--dim); font-size: 12.5px; text-decoration: none;
+    font-family: var(--display); text-transform: uppercase; letter-spacing: .12em; }
+  footer .flinks a:hover { color: var(--acc); }
+  .modelpick { display: flex; gap: 12px; margin-bottom: 14px; }
+  .modelpick button { flex: 1; background: var(--panel2); color: var(--dim);
+    border: 2px solid var(--line2); border-radius: 0; padding: 11px 12px; cursor: default;
+    font-size: 13px; text-align: left; box-shadow: 4px 4px 0 var(--ink);
+    transition: all .12s ease; font-family: inherit; }
+  .modelpick button.on { border-color: var(--acc); color: var(--text);
+    box-shadow: 4px 4px 0 var(--ink-acc); }
+  .modelpick .name { font-weight: 700; font-size: 14px; font-family: var(--display); }
+  .modelpick .meta { font-size: 11px; color: var(--dim); margin-top: 4px; line-height: 1.55; }
+  #chatlog { min-height: 200px; max-height: 460px; overflow-y: auto; display: flex;
+             flex-direction: column; gap: 10px; padding: 4px 2px; }
+  .msg { max-width: 88%; padding: 10px 14px; border-radius: 0; font-size: 14px;
+         white-space: pre-wrap; word-break: break-word; }
+  .msg.user { align-self: flex-end; background: #052e21; border: 1.5px solid #10604a;
+              box-shadow: 3px 3px 0 var(--ink-acc); }
+  .msg.bot  { align-self: flex-start; background: var(--panel2); border: 1.5px solid var(--line2);
+              box-shadow: 3px 3px 0 var(--ink); }
+  .msg.sys  { align-self: center; background: none; color: var(--dim); font-size: 12px;
+              border: 1px dashed var(--line2); }
+  .msg .tag { display: block; font-size: 10.5px; color: var(--dim); margin-top: 7px;
+              font-family: var(--mono); }
+  .msg .tag a { color: var(--acc); text-decoration: none; }
+  .inbar { display: flex; gap: 12px; margin-top: 14px; }
+  .inbar input[type=text] { flex: 1; background: var(--panel2); border: 2px solid var(--line2);
+    border-radius: 0; color: var(--text); padding: 12px 14px; font-size: 14px;
+    font-family: inherit; transition: all .12s ease; }
+  .inbar input[type=text]:focus { outline: none; border-color: var(--acc);
+    box-shadow: 3px 3px 0 var(--ink-acc); }
+  .inbar input[type=text]:disabled { opacity: .55; cursor: not-allowed; }
+  /* kit LiftedButton: solid base shadow, presses flush on :active */
+  .btn { background: var(--acc); color: #022c22; font-weight: 700;
+         border: 2px solid #022c22;
+         border-radius: 0; padding: 12px 20px; cursor: pointer; font-size: 13px;
+         font-family: var(--display); text-transform: uppercase; letter-spacing: .08em;
+         box-shadow: 4px 4px 0 var(--ink-acc); transition: all .12s ease; }
+  .btn:hover:not(:disabled) { background: #6ee7b7; transform: translate(-1px,-1px);
+         box-shadow: 5px 5px 0 var(--ink-acc); }
+  .btn:active:not(:disabled) { transform: translate(4px,4px); box-shadow: 0 0 0 var(--ink-acc); }
+  .btn:disabled { opacity: .45; cursor: default; box-shadow: none; }
+  .btn.ghost { background: var(--panel2); color: var(--text); border: 2px solid var(--line2);
+               box-shadow: 4px 4px 0 var(--ink); }
+  .btn.ghost:hover:not(:disabled) { background: #1c1c21; }
+  .btn.ghost:active:not(:disabled) { transform: translate(4px,4px); box-shadow: 0 0 0 transparent; }
+  .kv { font-family: var(--mono); font-size: 12px; color: var(--dim); line-height: 1.9; }
+  .kv b { color: var(--text); font-weight: 500; }
+  .kv .addr { color: var(--acc); }
+  .kv a { color: var(--acc); text-decoration: none; }
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 0;
+          font-family: var(--display); font-size: 11px; font-weight: 700;
+          letter-spacing: .06em; border: 1px solid transparent; }
+  .pill.live { background: #12331f; color: var(--good); border-color: #1e5a37; }
+  .pill.wait { background: #33270f; color: var(--warn); border-color: #5a4418; }
+  .pill.off  { background: #3a1420; color: var(--bad);  border-color: #6b2430; }
+  .story { border: 1.5px solid var(--line); border-left: 3px solid var(--acc);
+           padding: 10px 14px; margin: 10px 0;
+           background: var(--panel2); border-radius: 0; font-size: 13.5px;
+           box-shadow: 3px 3px 0 var(--ink); }
+  .story .m { font-family: var(--mono); font-size: 10.5px; color: var(--dim); margin-top: 6px; }
+  .story .m a { color: var(--acc); text-decoration: none; }
+  .story .m .ok { color: var(--good); } .story .m .no { color: var(--bad); }
+
+  /* ---- bisection lab ---- */
+  .seg-track { display: flex; gap: 2px; height: 54px; align-items: stretch; margin: 14px 0 6px; }
+  .seg { flex: 1; border-radius: 3px; background: #1d2534; position: relative;
+         transition: all .25s ease; min-width: 3px; }
+  .seg.inwin { background: #24436b; }
+  .seg.mid { outline: 2px solid var(--warn); z-index: 2; }
+  .seg.divergent { background: #6b2430; }
+  .seg.pinned { background: #14532d; }
+  .seg.culprit { background: var(--bad); box-shadow: 0 0 14px #f8717188; }
+  .axis { display: flex; justify-content: space-between; font-family: var(--mono);
+          font-size: 10.5px; color: var(--dim); }
+  .commitrow { display: flex; gap: 2px; margin-top: 3px; }
+  .commit { flex: 1; text-align: center; font-family: var(--mono); font-size: 9px;
+            color: var(--dim); overflow: hidden; white-space: nowrap; min-width: 3px; }
+  .commit.match { color: var(--good); } .commit.differ { color: var(--bad); }
+  #roundlog { font-family: var(--mono); font-size: 12.5px; line-height: 1.85;
+              max-height: 300px; overflow-y: auto; }
+  #roundlog .r { border-left: 2px solid var(--line); padding-left: 10px; margin-bottom: 8px; }
+  #roundlog .r.final { border-left-color: var(--bad); }
+  #roundlog .op { color: var(--acc); } #roundlog .ch { color: var(--acc2); }
+  #roundlog .g { color: var(--good); } #roundlog .b { color: var(--bad); }
+  #roundlog .d { color: var(--dim); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+           gap: 10px; margin-top: 12px; }
+  .stat { background: var(--panel2); border: 1.5px solid var(--line2); border-radius: 0;
+          padding: 10px 12px; box-shadow: 3px 3px 0 var(--ink); }
+  .stat .v { font-family: var(--mono); font-size: 17px; color: var(--acc); }
+  .stat .k { font-size: 11px; color: var(--dim); margin-top: 2px; }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+  select { background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+           border-radius: 0; padding: 8px 10px; font-size: 13px; }
+  .note { font-size: 12.5px; color: var(--dim); line-height: 1.6; }
+  .note b { color: var(--text); }
+  code { font-family: var(--mono); font-size: .92em; color: var(--acc); }
+  .hdot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px;
+    background:#555; vertical-align:0; }
+  .hdot.up { background: var(--good); } .hdot.down { background: #c33; }
+</style>
+</head>
+<body>
+<header>
+  <a href="https://gaskiller.xyz" target="_blank"><img src="gk-wordmark.png" alt="Gas Killer" class="wordmark"></a>
+  <div class="links">
+    <a href="https://gaskiller.xyz" target="_blank">gaskiller.xyz ↗</a>
+    <a href="https://llm.gaskiller.xyz" target="_blank">EVM demo ↗</a>
+    <a href="https://github.com/BreadchainCoop/jito-ncn-program" target="_blank">GitHub ↗</a>
+    <a href="https://www.jito.network/restaking/" target="_blank">Jito Restaking ↗</a>
+    <a href="mailto:contact@gaskiller.xyz">Contact</a>
+  </div>
+</header>
+
+<section class="hero">
+  <img src="gk-eclipse.png" alt="" class="eclipse">
+  <p class="kicker">Gas Killer × Jito · Solana Devnet Port</p>
+  <h1>A language model,<br><span class="gk">settling on Solana.</span></h1>
+  <p class="sub">
+    Transformer inference in pure Solidity, executed off-chain by a
+    <a href="https://www.jito.network/restaking/" target="_blank">Jito-restaked</a> operator
+    committee and settled on Solana with one BN254 BLS certificate — the Solana port of the
+    <a href="https://llm.gaskiller.xyz" target="_blank">live Sepolia demo</a>.
+  </p>
+  <div class="statrow">
+    <span class="statchip"><b>stories260K</b> Llama-2 consumer (GasKillerLLM)</span>
+    <span class="statchip"><b>~44M</b> EVM gas / token, simulated off-chain</span>
+    <span class="statchip"><b>1</b> settle instruction per answer</span>
+    <span class="statchip"><b>≥66.67%</b> restaked-stake BLS quorum</span>
+    <span class="statchip"><b>BN254</b> gamma byte-exact with EigenLayer</span>
+  </div>
+  <div class="statrow" style="margin-top:10px">
+    <span class="statchip" style="border-color:var(--acc2)"><b>PORT</b> · Jito restaking → NCN snapshot → BLS certificate → settle ix → story buffer</span>
+    <span class="statchip">digest = <b>sha256(borsh(SettlementPayload))</b></span>
+    <span class="statchip" style="opacity:.85">this page reads the chain · it never fabricates a response</span>
+  </div>
+  <div class="pipeviz">
+    <div class="pv-row">
+      <span class="pv-node">"tell me a story…"<span class="t">prompt</span></span>
+      <span class="pv-flow"><span></span><span></span><span></span></span>
+      <span class="pv-grid" id="pv-grid"></span>
+      <span class="pv-flow"><span></span><span></span><span></span></span>
+      <span class="pv-node pv-late">#cca755…<span class="t">digest certified</span></span>
+      <span class="pv-flow"><span></span><span></span><span></span></span>
+      <span class="pv-node pv-late">◎ 1 ix<span class="t">settled</span></span>
+    </div>
+    <p class="pv-cap">one inference → sha256(borsh(payload)) digest → stake-weighted BLS
+      certificate → one settle instruction + sha256-bound story buffer</p>
+  </div>
+  <script>
+    (function(){ const g = document.getElementById('pv-grid');
+      for (let i = 0; i < 24; i++) { const s = document.createElement('i');
+        s.style.animationDelay = (i * 0.16) + 's'; g.appendChild(s); } })();
+  </script>
+</section>
+
+<nav>
+  <button id="nav-chat" class="on" onclick="tab('chat')">Chat</button>
+  <button id="nav-lab" onclick="tab('lab')">Bisection Proof Lab</button>
+</nav>
+<main>
+
+<!-- ============================ CHAT ============================ -->
+<section id="tab-chat" class="tab on">
+  <div class="steps">
+    <div class="step"><span class="big">01</span><span class="n">Step 01 · Restake</span>
+      <h4>Vaults weight the committee</h4>
+      <div class="sv">
+        <span class="pv-node">Jito vault<span class="t">delegation</span></span>
+        <span class="pv-flow"><span></span><span></span><span></span></span>
+        <span class="op">OP·0<b><i></i></b></span>
+        <span class="op">OP·1<b><i></i></b></span>
+        <span class="agree">APK ✓</span>
+      </div>
+      <p class="cap">Operators register BN254 keys with the NCN; vault delegations become
+      stake weights in a generation-tagged snapshot with a running aggregate key.</p></div>
+    <div class="step"><span class="big">02</span><span class="n">Step 02 · Simulate</span>
+      <h4>The committee certifies a digest</h4>
+      <div class="sv">
+        <span class="pv-node">"tell me…"</span>
+        <span class="pv-flow"><span></span><span></span><span></span></span>
+        <span class="tokrow"><i>Store</i><i>Event</i><i>sha256</i></span>
+        <span class="agree">✓ bit-exact</span>
+      </div>
+      <p class="cap">The producer runs the EVM-reference sim (revm, UnboundedV1) of
+      GasKillerLLM; every honest operator recomputes the identical payload digest and
+      co-signs one BLS certificate.</p></div>
+    <div class="step"><span class="big">03</span><span class="n">Step 03 · Settle</span>
+      <h4>One instruction on Solana</h4>
+      <div class="sv">
+        <span class="gasbar big"><span>~44M gas/tok sim</span></span>
+        <span style="color:var(--dim)">→</span>
+        <span class="gasbar tiny"><span>1 ix</span></span>
+        <span class="pv-node">◎ ✓</span>
+      </div>
+      <p class="cap">The settle ix verifies the certificate against ≥66.67% of snapshot
+      stake, writes one commitment root, emits self-CPI events; story bytes land in an
+      sha256-bound buffer account.</p></div>
+  </div>
+  <div class="row">
+    <div class="col" style="flex:1.5 1 520px">
+      <div class="card">
+        <div class="modelpick">
+          <button id="pick-llm" class="on">
+            <span class="name">GasKillerLLM · stories260K <span class="pill wait" id="llm-pill">CHECKING…</span></span>
+            <div class="meta">Llama-2 architecture, 260K params, pure Solidity (UnboundedV1
+            profile) · EVM-reference simulation ~44M gas per token, run off-chain by the
+            operator committee · settled here as one <code>commitment_root</code> write +
+            an sha256-verified story buffer per answer</div>
+          </button>
+        </div>
+        <div id="chatlog"></div>
+        <div class="inbar">
+          <input type="text" id="prompt" disabled
+            placeholder="Prompts run through the task producer + operator committee — not from this page.">
+          <button class="btn" id="send" onclick="readChain()" disabled>Read the chain</button>
+        </div>
+        <div class="note" style="margin-top:8px" id="chat-note"></div>
+      </div>
+      <div class="card" id="watchcard" style="display:none">
+        <h3>Chain watch — <span id="w-cluster"></span></h3>
+        <div class="note">
+          <span class="hdot" id="w-health"></span><span id="w-healthtext">checking RPC…</span>
+          &nbsp;·&nbsp; transitions settled <b id="w-count">—</b>
+          &nbsp;·&nbsp; commitment root <code id="w-root">—</code>
+          &nbsp;·&nbsp; checked <b id="w-last">—</b>
+        </div>
+      </div>
+      <div class="card">
+        <h3>On-chain history</h3>
+        <div id="history" class="note">loading config…</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ LAB ============================ -->
+<section id="tab-lab" class="tab">
+  <div class="card">
+    <h3>Bisection proof — disputing a billion-gas inference with log₂(n) hashes</h3>
+    <div class="note">
+      Every Gas Killer result is signed by a quorum, and every honest operator computes a
+      <b>bit-identical</b> integer inference. If a signed result is ever wrong, a challenger
+      doesn't re-execute billions of gas of simulation on-chain — that's impossible. Instead
+      the execution is checkpointed at every generated token (the commitment chain the
+      settlement already maintains — on Solana, the per-transition digest chain in the state
+      PDA), and challenger + defender <b>bisect</b>: compare the midpoint checkpoint, recurse
+      into the half that disagrees, and after ⌈log₂ n⌉ rounds isolate <b>one token's forward
+      pass</b> — small enough to re-execute off-chain in the SP1 slashing guest. The fraud is
+      proven at the first divergent step; the dishonest party is slashed. This lab simulates
+      the whole game, fully in your browser. <b>Numbers quote the EVM reference
+      implementation</b> (gas of the pinned simulation) — the dispute game itself is
+      chain-agnostic: on Solana each round is one checkpoint comparison, and slashing
+      execution is roadmap (pending Jito's upstream <code>Slash</code> instruction).
+    </div>
+    <div class="controls">
+      <select id="lab-model" onchange="labSetup()">
+        <option value="llm">stories260K · 24 tokens · ~44M gas/token (EVM reference)</option>
+        <option value="big">stories260K long · 64 segments</option>
+      </select>
+      <select id="lab-mode" onchange="labSetup()">
+        <option value="dishonest">defender is dishonest (random fault)</option>
+        <option value="honest">defender is honest (challenge fails)</option>
+      </select>
+      <button class="btn ghost" onclick="labSetup()">Reset</button>
+      <button class="btn" id="lab-step" onclick="labStep()">Bisect one round</button>
+      <button class="btn ghost" id="lab-auto" onclick="labAuto()">Auto-run</button>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Execution trace — one segment per generated token</h3>
+    <div class="seg-track" id="segtrack"></div>
+    <div class="commitrow" id="commitrow"></div>
+    <div class="axis"><span>token 0 (prompt committed)</span><span id="axis-mid"></span><span id="axis-end"></span></div>
+    <div class="stats">
+      <div class="stat"><div class="v" id="st-total">—</div><div class="k">total execution gas (EVM reference, off-chain)</div></div>
+      <div class="stat"><div class="v" id="st-window">—</div><div class="k">disputed window (segments)</div></div>
+      <div class="stat"><div class="v" id="st-rounds">—</div><div class="k">bisection rounds used / max</div></div>
+      <div class="stat"><div class="v" id="st-onchain">—</div><div class="k">work to prove the culprit segment</div></div>
+      <div class="stat"><div class="v" id="st-saving">—</div><div class="k">vs naive full re-execution</div></div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col">
+      <div class="card">
+        <h3>Dispute transcript</h3>
+        <div id="roundlog"></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card">
+        <h3>How this maps to the Jito NCN port</h3>
+        <div class="note">
+          <b>Checkpoints are free.</b> The consumer's commitment root is already a running
+          digest chain — every settle binds <code>transition_index</code>, the state PDA and
+          the new root into <code>sha256(borsh(SettlementPayload))</code>; emitting the
+          per-token intermediate roots during simulation costs the operators nothing extra —
+          they're deterministic integer states.<br><br>
+          <b>The pinned environment is part of the claim.</b> The state PDA carries
+          <code>sim_profile_id</code> and <code>env_commitment</code> — both parties bisect
+          over the same pinned simulation profile and weight manifest. A defender who
+          simulated with different weights diverges at segment 0 and loses immediately:
+          availability games can't forge the manifest.<br><br>
+          <b>The endgame is tiny.</b> One stories260K token ≈ 44M gas in the EVM reference
+          sim — exactly the workload the SP1 guest re-executes off-chain to produce a fraud
+          proof. On Solana, slashing execution is roadmap: slasher tickets are the Layer-2
+          deliverable, pending Jito's upstream <code>Slash</code> instruction.<br><br>
+          <b>Honest defenders can't lose.</b> Try the honest mode: every midpoint matches,
+          the challenger's window never isolates a divergence, and the challenge bond is
+          forfeited instead.
+        </div>
+      </div>
+      <div class="card">
+        <h3>The pipeline, ported</h3>
+        <div class="pv-row" style="margin:6px 0 12px">
+          <span class="pv-node">Jito<span class="t">restaking</span></span>
+          <span class="pv-flow"><span></span><span></span><span></span></span>
+          <span class="pv-node">NCN<span class="t">snapshot</span></span>
+          <span class="pv-flow"><span></span><span></span><span></span></span>
+          <span class="pv-node">BLS<span class="t">certificate</span></span>
+          <span class="pv-flow"><span></span><span></span><span></span></span>
+          <span class="pv-node">settle<span class="t">instruction</span></span>
+          <span class="pv-flow"><span></span><span></span><span></span></span>
+          <span class="pv-node">story<span class="t">buffer</span></span>
+        </div>
+        <div class="note" style="margin-bottom:10px">The Solana port replaces the
+        settlement + registry layer only: EigenLayer restaking → <b>Jito (re)staking</b>,
+        BLSSignatureChecker → the NCN's stateless <b>VerifyCertificate</b> path,
+        <code>verifyAndUpdate</code> → one <b>settle instruction</b>, event logs →
+        <b>self-CPI events</b> + sha256-bound buffer accounts.</div>
+        <img src="gk-diagram.png" alt="Gas Killer architecture" style="width:100%;height:auto;display:block">
+        <div class="note" style="margin-top:8px">The same pipeline every Gas Killer consumer
+        uses — user tx → GK operator layer → settled state + gas surplus, riding
+        commonware-coordinated restaking (on Solana: Jito). This demo just makes the
+        “execution” box a 260K-parameter transformer. More at
+        <a style="color:var(--acc);text-decoration:none"
+        href="https://gaskiller.xyz" target="_blank">gaskiller.xyz</a>.</div>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="inner" style="margin-bottom:22px">
+    <div style="width:100%">
+      <h3 class="fh">Programs (Solana Devnet)</h3>
+      <div class="kv" id="contracts">loading config…</div>
+    </div>
+  </div>
+  <div class="inner">
+    <div class="tagline">
+      <b>Gas Killer</b> — cheaper, safer smart contracts without rewriting them.<br>
+      This port: <a style="color:var(--acc);text-decoration:none" target="_blank"
+        href="https://github.com/BreadchainCoop/jito-ncn-program">jito-ncn-program</a> ·
+      <a style="color:var(--acc);text-decoration:none" target="_blank"
+        href="https://github.com/BreadchainCoop/jito-ncn-program/blob/main/docs/PARITY-PLAN.md">parity plan</a> ·
+      <a style="color:var(--acc);text-decoration:none" target="_blank"
+        href="https://github.com/BreadchainCoop/jito-ncn-program/blob/main/docs/INTERFACES.md">interface contract</a> ·
+      <a style="color:var(--acc);text-decoration:none" target="_blank"
+        href="https://llm.gaskiller.xyz">EVM reference demo</a>
+    </div>
+    <div class="flinks">
+      <a href="https://gaskiller.xyz" target="_blank">Site</a>
+      <a href="https://github.com/BreadchainCoop/jito-ncn-program" target="_blank">GitHub</a>
+      <a href="https://explorer.solana.com/?cluster=devnet" target="_blank">Explorer</a>
+      <a href="https://www.jito.network/restaking/" target="_blank">Jito</a>
+      <a href="mailto:contact@gaskiller.xyz">Contact</a>
+    </div>
+  </div>
+</footer>
+
+<!-- pinned @solana/web3.js — used ONLY for PDA derivation (findProgramAddressSync);
+     all RPC goes through hand-rolled JSON-RPC fetch, mirroring the EVM page. -->
+<script src="https://unpkg.com/@solana/web3.js@1.95.8/lib/index.iife.min.js"></script>
+<script>
+/* =================== config =================== */
+// Runtime config written by the devnet deploy (Phase 5 / Track F). Until it is
+// populated, this page shows an explicit "network not deployed yet" state —
+// it NEVER fabricates chain data.
+//   { rpcUrl, ncnProgramId, settlementProgramId, statePda, commitment, cluster }
+let CFG = null;
+let configured = false;      // rpcUrl + program ids + state pda all present
+let missingFields = [];
+let chainState = null;       // decoded state PDA (see decodeStatePda)
+let STORY_META_DISC = null;  // sha256("gk:story_meta")[..8] == cca755e2a2a25bed
+let watchTimer = null;
+let lastCount = null;
+
+const REQUIRED = ["rpcUrl", "ncnProgramId", "settlementProgramId", "statePda"];
+async function loadConfig(){
+  try {
+    const r = await fetch("config.json", { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    CFG = await r.json();
+  } catch(e){ CFG = null; }
+  missingFields = REQUIRED.filter(k => !(CFG && typeof CFG[k] === "string" && CFG[k].trim()));
+  configured = CFG !== null && missingFields.length === 0;
+}
+const commitment = () => (CFG && CFG.commitment) || "confirmed";
+const txCommitment = () => commitment() === "processed" ? "confirmed" : commitment();
+const cluster = () => (CFG && CFG.cluster) || "devnet";
+const explAddr = a => `https://explorer.solana.com/address/${a}?cluster=${cluster()}`;
+const explTx  = s => `https://explorer.solana.com/tx/${s}?cluster=${cluster()}`;
+
+/* =================== tiny helpers =================== */
+const $ = id => document.getElementById(id);
+function tab(t) {
+  for (const x of ["chat","lab"]) {
+    $("tab-"+x).classList.toggle("on", x===t);
+    $("nav-"+x).classList.toggle("on", x===t);
+  }
+}
+function esc(s){ const d=document.createElement("div"); d.textContent=s; return d.innerHTML; }
+async function rpc(method, params) {
+  const r = await fetch(CFG.rpcUrl, { method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({jsonrpc:"2.0", id:1, method, params}) });
+  if (!r.ok) throw new Error("RPC HTTP " + r.status);
+  const j = await r.json();
+  if (j.error) throw new Error(j.error.message || JSON.stringify(j.error));
+  return j.result;
+}
+const B58A = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+function b58decode(s){
+  const bytes=[0];
+  for (const c of s){
+    const v = B58A.indexOf(c); if (v < 0) throw new Error("bad base58");
+    let carry = v;
+    for (let i=0;i<bytes.length;i++){ const x = bytes[i]*58 + carry; bytes[i] = x & 0xff; carry = x >> 8; }
+    while (carry){ bytes.push(carry & 0xff); carry >>= 8; }
+  }
+  for (const c of s){ if (c === "1") bytes.push(0); else break; }
+  return new Uint8Array(bytes.reverse());
+}
+function b58encode(bytes){
+  const digits=[0];
+  for (const b of bytes){
+    let carry = b;
+    for (let i=0;i<digits.length;i++){ const x = digits[i]*256 + carry; digits[i] = x % 58; carry = (x / 58) | 0; }
+    while (carry){ digits.push(carry % 58); carry = (carry / 58) | 0; }
+  }
+  let s = "";
+  for (const b of bytes){ if (b === 0) s += "1"; else break; }
+  for (let i=digits.length-1;i>=0;i--) s += B58A[digits[i]];
+  return s;
+}
+const b64ToBytes = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+const hexOf = bytes => Array.from(bytes, b => b.toString(16).padStart(2,"0")).join("");
+const short = (s, n=10) => s.length > n*2 ? s.slice(0,n) + "…" + s.slice(-4) : s;
+async function sha256(bytes){
+  return new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+}
+const bytesEq = (a,b) => a.length === b.length && a.every((x,i) => x === b[i]);
+function u32le(bytes, off){ return new DataView(bytes.buffer, bytes.byteOffset).getUint32(off, true); }
+function u64le(bytes, off){ return Number(new DataView(bytes.buffer, bytes.byteOffset).getBigUint64(off, true)); }
+async function getAccount(pk){
+  const r = await rpc("getAccountInfo", [pk, { encoding: "base64", commitment: commitment() }]);
+  return r && r.value ? r.value : null;
+}
+
+/* ---- state PDA decode (INTERFACES.md §4) ----
+   seeds [b"gk_state", ncn, app_id]; fields:
+   discriminator, ncn: Pubkey, app_id: [u8;32], commitment_root: [u8;32],
+   transition_count: u64, sim_profile_id: [u8;32], env_commitment: [u8;32], bump.
+   Field bytes = 32+32+32+8+32+32+1 = 169. Header (discriminator) width follows
+   the repo's jito_bytemuck convention: byte 0 = 1-byte discriminator, struct at
+   byte 8 (SIZE = 8 + size_of::<Self>()). We infer the header from the account
+   length so a 1-byte- or 0-byte-header build still decodes. */
+const STATE_FIELDS = 169;
+function decodeStatePda(bytes){
+  let hdr = null;
+  const d = bytes.length - STATE_FIELDS;
+  if (d === 8 || d === 1 || d === 0) hdr = d;
+  else if (bytes.length >= STATE_FIELDS + 8) hdr = 8;   // trailing padding
+  else return null;                                     // unrecognized layout
+  let o = hdr;
+  const take = n => { const s = bytes.slice(o, o+n); o += n; return s; };
+  return {
+    header: hdr,
+    ncn: b58encode(take(32)),
+    app_id: hexOf(take(32)),
+    commitment_root: hexOf(take(32)),
+    transition_count: u64le(take(8), 0),
+    sim_profile_id: hexOf(take(32)),
+    env_commitment: hexOf(take(32)),
+    bump: take(1)[0],
+  };
+}
+
+/* ---- settle events (INTERFACES.md §4) ----
+   Events are self-CPIs: the settlement program invokes itself with
+   instruction data = discriminant(8) ‖ borsh payload. story_meta:
+   discriminant = sha256("gk:story_meta")[..8],
+   payload = borsh { story_sha256: [u8;32], buffer: Pubkey, len: u32 }. */
+function decodeStoryMeta(bytes){  // bytes = full ix data
+  if (bytes.length < 8 + 32 + 32 + 4) return null;
+  if (!bytesEq(bytes.slice(0,8), STORY_META_DISC)) return null;
+  return { story_sha256: hexOf(bytes.slice(8,40)),
+           buffer: b58encode(bytes.slice(40,72)),
+           len: u32le(bytes, 72) };
+}
+
+/* =================== chat panel =================== */
+function addMsg(cls, html){
+  const d = document.createElement("div");
+  d.className = "msg "+cls; d.innerHTML = html;
+  $("chatlog").appendChild(d);
+  $("chatlog").scrollTop = 1e9;
+  return d;
+}
+function setPill(text, kind){
+  $("llm-pill").textContent = text;
+  $("llm-pill").className = "pill " + kind;
+}
+function chatNote(){
+  $("chat-note").innerHTML = configured
+    ? "This panel <b>reads</b> — it cannot ask. On Sepolia the demo can <code>eth_call</code>-" +
+      "simulate against the deployed contract; Solana has no analog that could replay the " +
+      "EVM-reference inference in your browser, and prompt submission runs through the task " +
+      "producer + operator committee off-chain. What you see is exactly what the committee " +
+      "settled: the state PDA's <code>commitment_root</code> + <code>transition_count</code>, " +
+      "and each answer's story bytes from its buffer account, sha256-checked against the " +
+      "certified <code>story_meta</code> event."
+    : "<b>Network not deployed yet.</b> This page is driven by <code>config.json</code> " +
+      "(written by the devnet deploy — Phase 5 of the parity plan); " +
+      (CFG === null ? "no config was found" : "missing: <code>" + missingFields.join("</code>, <code>") + "</code>") +
+      ". Until the settlement program and its consumer state PDA are live, there is nothing " +
+      "truthful to show here — this demo never fabricates a chain response.";
+}
+
+// The Solana "submit" flow is a read of settled state + story buffers: fetch the
+// state PDA, then the newest settlement's story, and post it to the chat log.
+async function readChain(){
+  if (!configured) return;
+  $("send").disabled = true;
+  const busy = addMsg("sys", "reading settled state from " + esc(cluster()) + "…");
+  try {
+    const acct = await getAccount(CFG.statePda);
+    if (!acct) {
+      busy.innerHTML = "state PDA <code>" + esc(short(CFG.statePda)) + "</code> not found on " +
+        esc(cluster()) + " — the consumer isn't initialized on this cluster yet.";
+      return;
+    }
+    const st = decodeStatePda(b64ToBytes(acct.data[0]));
+    if (!st) { busy.innerHTML = "state PDA exists but has an unrecognized layout (" +
+      b64ToBytes(acct.data[0]).length + " bytes) — expecting the §4 gk_state account."; return; }
+    chainState = st;
+    if (st.transition_count === 0) {
+      busy.innerHTML = "state PDA live ✓ — <b>0 transitions settled</b>. No committee " +
+        "answers on-chain yet; nothing to show (and nothing will be invented).";
+      return;
+    }
+    busy.innerHTML = "state PDA live ✓ — " + st.transition_count +
+      " transition(s) settled · root <code>" + short(st.commitment_root) + "</code>. " +
+      "Fetching the newest settlement…";
+    const items = await fetchSettlements(3);
+    const latest = items.find(x => x.story) || items[0];
+    if (!latest) {
+      busy.innerHTML += "<br>no settle transactions found in recent signature history " +
+        "(history may exceed the RPC's retention) — see On-chain history for the buffer-PDA fallback.";
+      return;
+    }
+    if (latest.story) {
+      addMsg("bot", esc(latest.story.text) +
+        `<span class="tag">settled by the operator committee · story sha256 ${latest.story.verified ? "verified ✓" : "MISMATCH ✗"} · ` +
+        `<a target="_blank" href="${explTx(latest.sig)}">settle tx ↗</a></span>`);
+    } else {
+      addMsg("bot", "(newest settlement carries no story_meta event — " + latest.events.length +
+        " event(s))" + `<span class="tag"><a target="_blank" href="${explTx(latest.sig)}">settle tx ↗</a></span>`);
+    }
+  } catch(e) {
+    busy.innerHTML = "✗ " + esc(String(e.message || e));
+  } finally {
+    $("send").disabled = !configured;
+  }
+}
+
+/* ---- settlement fetch: signatures on the state PDA -> settle txs ->
+        self-CPI events -> sha256-verified story buffers ---- */
+async function fetchSettlements(limit){
+  const sigs = await rpc("getSignaturesForAddress",
+    [CFG.statePda, { limit: limit || 12, commitment: txCommitment() }]);
+  const out = [];
+  for (const s of sigs) {
+    if (s.err) continue;
+    let tx;
+    try {
+      tx = await rpc("getTransaction", [s.signature,
+        { encoding: "json", maxSupportedTransactionVersion: 0, commitment: txCommitment() }]);
+    } catch(e){ continue; }
+    if (!tx || !tx.meta) continue;
+    const la = tx.meta.loadedAddresses || {};
+    const keys = (tx.transaction.message.accountKeys || [])
+      .concat(la.writable || [], la.readonly || []);
+    const events = [];
+    for (const grp of (tx.meta.innerInstructions || []))
+      for (const ix of grp.instructions){
+        if (keys[ix.programIdIndex] !== CFG.settlementProgramId) continue;
+        let data;
+        try { data = b58decode(ix.data); } catch(e){ continue; }
+        if (data.length < 8) continue;
+        const meta = decodeStoryMeta(data);
+        events.push(meta ? { kind: "story_meta", meta }
+                         : { kind: "event", disc: hexOf(data.slice(0,8)), size: data.length - 8 });
+      }
+    if (!events.length) continue;   // not a settle (e.g. state init)
+    const entry = { sig: s.signature, slot: s.slot, blockTime: s.blockTime, events, story: null };
+    const sm = events.find(e => e.kind === "story_meta");
+    if (sm) {
+      try {
+        const buf = await getAccount(sm.meta.buffer);
+        if (buf) {
+          const bytes = b64ToBytes(buf.data[0]).slice(0, sm.meta.len);
+          const hash = hexOf(await sha256(bytes));
+          entry.story = { text: new TextDecoder().decode(bytes),
+                          verified: hash === sm.meta.story_sha256,
+                          buffer: sm.meta.buffer, len: sm.meta.len };
+        } else {
+          entry.story = { text: "(story buffer " + short(sm.meta.buffer) +
+            " closed or missing — " + sm.meta.len + " bytes were committed, sha256 " +
+            short(sm.meta.story_sha256) + ")", verified: false, buffer: sm.meta.buffer,
+            len: sm.meta.len, missing: true };
+        }
+      } catch(e){ /* buffer fetch failed; leave story null */ }
+    }
+    out.push(entry);
+  }
+  return out;
+}
+
+/* ---- buffer-PDA fallback (tx history pruned): derive
+        [b"gk_buffer", state_pda, transition_index le] and read directly ---- */
+function bufferPdaFor(i){
+  if (typeof solanaWeb3 === "undefined") return null;
+  const { PublicKey } = solanaWeb3;
+  const seed = new Uint8Array(8);
+  new DataView(seed.buffer).setBigUint64(0, BigInt(i), true);
+  return PublicKey.findProgramAddressSync(
+    [ new TextEncoder().encode("gk_buffer"),
+      new PublicKey(CFG.statePda).toBytes(), seed ],
+    new PublicKey(CFG.settlementProgramId))[0].toBase58();
+}
+async function bufferFallback(count){
+  if (typeof solanaWeb3 === "undefined")
+    return `<div class="note">settle-tx history unavailable and the web3.js CDN did not load,
+      so buffer PDAs can't be derived offline.</div>`;
+  const first = Math.max(0, count - 8);
+  let html = "";
+  for (let i = count - 1; i >= first; i--) {
+    const pda = bufferPdaFor(i);
+    let acct = null;
+    try { acct = await getAccount(pda); } catch(e){}
+    if (!acct) {
+      html += `<div class="story"><b>transition #${i}</b> — buffer PDA
+        <code>${esc(short(pda))}</code> not found (closed after indexing, or never staged).
+        <div class="m"><a target="_blank" href="${explAddr(pda)}">buffer PDA ↗</a></div></div>`;
+      continue;
+    }
+    let bytes = b64ToBytes(acct.data[0]);
+    let end = bytes.length; while (end > 0 && bytes[end-1] === 0) end--;   // trim zero tail
+    const text = new TextDecoder().decode(bytes.slice(0, end));
+    html += `<div class="story"><b>transition #${i}</b><br>${esc(text)}
+      <div class="m">${end} bytes (untrimmed ${bytes.length}) · <span class="no">len UNVERIFIED —
+      settle tx pruned, showing raw buffer bytes</span> ·
+      <a target="_blank" href="${explAddr(pda)}">buffer ↗</a></div></div>`;
+  }
+  return html || `<div class="note">no buffer accounts found for transitions
+    ${first}–${count-1}.</div>`;
+}
+
+/* =================== on-chain history =================== */
+async function loadHistory(){
+  if (!configured) {
+    $("history").innerHTML =
+      "<b>network not deployed yet</b> — no <code>config.json</code>" +
+      (CFG === null ? "" : " fields: <code>" + missingFields.join("</code>, <code>") + "</code>") +
+      ". The devnet deploy (parity-plan Phase 5) writes rpcUrl + program ids + the consumer " +
+      "state PDA here; until then there is no chain to read.";
+    return;
+  }
+  try {
+    const acct = await getAccount(CFG.statePda);
+    if (!acct) {
+      $("history").innerHTML = "state PDA <code>" + esc(short(CFG.statePda)) +
+        "</code> not found on " + esc(cluster()) +
+        " — the settlement program hasn't initialized this consumer yet. Nothing settled, nothing shown.";
+      return;
+    }
+    const st = decodeStatePda(b64ToBytes(acct.data[0]));
+    if (!st) {
+      $("history").innerHTML = "state PDA exists but its layout isn't the §4 gk_state account (" +
+        b64ToBytes(acct.data[0]).length + " bytes) — refusing to guess.";
+      return;
+    }
+    chainState = st;
+    renderContracts();
+    const head =
+      `<div class="kv" style="margin-bottom:8px">commitment_root <span class="addr">${short(st.commitment_root, 16)}</span>` +
+      ` · transitions <b>${st.transition_count}</b>` +
+      ` · ncn <a target="_blank" href="${explAddr(st.ncn)}">${short(st.ncn)}</a></div>`;
+    if (st.transition_count === 0) {
+      $("history").innerHTML = head + "<b>0 transitions settled</b> — no on-chain answers yet for stories260K.";
+      return;
+    }
+    const items = await fetchSettlements(12);
+    if (!items.length) {
+      $("history").innerHTML = head +
+        `<div class="note" style="margin-bottom:6px">no settle transactions in recent signature
+        history (RPC retention) — falling back to direct buffer-PDA reads:</div>` +
+        await bufferFallback(st.transition_count);
+      return;
+    }
+    let html = head;
+    for (const it of items) {
+      const when = it.blockTime ? new Date(it.blockTime*1000).toISOString().replace("T"," ").slice(0,16)+" UTC" : "slot "+it.slot;
+      if (it.story) {
+        html += `<div class="story">${esc(it.story.text)}
+          <div class="m">${it.story.len} bytes · ${it.story.verified
+            ? '<span class="ok">story sha256 verified ✓</span>'
+            : '<span class="no">sha256 ' + (it.story.missing ? "unverifiable (buffer gone)" : "MISMATCH ✗") + '</span>'} ·
+          quorum-certified · <a target="_blank" href="${explTx(it.sig)}">settle ↗</a> ·
+          <a target="_blank" href="${explAddr(it.story.buffer)}">buffer ↗</a> · ${when}</div></div>`;
+      } else {
+        html += `<div class="story">(settlement with ${it.events.length} event(s), no story_meta:
+          ${it.events.map(e => "<code>" + e.disc + "</code>·" + e.size + "B").join(", ")})
+          <div class="m"><a target="_blank" href="${explTx(it.sig)}">settle ↗</a> · ${when}</div></div>`;
+      }
+    }
+    $("history").innerHTML = html;
+  } catch(e) {
+    $("history").innerHTML = "history unavailable: " + esc(String(e.message || e));
+  }
+}
+
+/* =================== chain watch (transition_count is ground truth) =================== */
+function stopWatch(){ clearInterval(watchTimer); watchTimer = null; }
+async function watchTick(){
+  try {
+    const acct = await getAccount(CFG.statePda);
+    $("w-health").className = "hdot up";
+    $("w-last").textContent = new Date().toTimeString().slice(0,8);
+    if (!acct) {
+      $("w-healthtext").textContent = "RPC live — state PDA not found (consumer not initialized)";
+      $("w-count").textContent = "—"; $("w-root").textContent = "—";
+      return;
+    }
+    const st = decodeStatePda(b64ToBytes(acct.data[0]));
+    if (!st) { $("w-healthtext").textContent = "RPC live — state PDA layout unrecognized"; return; }
+    $("w-healthtext").textContent = "RPC live";
+    $("w-count").textContent = st.transition_count;
+    $("w-root").textContent = short(st.commitment_root, 8);
+    if (lastCount !== null && st.transition_count > lastCount) {
+      addMsg("sys", "new settlement landed on-chain — transition #" + (st.transition_count - 1));
+      loadHistory();
+      setPill("LIVE", "live");
+    }
+    lastCount = st.transition_count;
+  } catch(e) {
+    $("w-health").className = "hdot down";
+    $("w-healthtext").textContent = "RPC unreachable: " + String(e.message || e).slice(0, 60);
+    $("w-last").textContent = new Date().toTimeString().slice(0,8);
+  }
+}
+function startWatch(){
+  stopWatch();
+  $("watchcard").style.display = "";
+  $("w-cluster").textContent = cluster();
+  watchTick();
+  watchTimer = setInterval(watchTick, 15e3);
+}
+
+/* =================== contracts / footer =================== */
+function renderContracts(){
+  if (!configured) {
+    $("contracts").innerHTML =
+      `<b>NCN program</b> <span class="addr">— awaiting devnet deploy</span><br>` +
+      `<b>settlement program</b> <span class="addr">— awaiting devnet deploy</span><br>` +
+      `<b>stories260K state PDA</b> <span class="addr">— awaiting devnet deploy</span><br>` +
+      `populated at runtime from <code>config.json</code> (parity-plan Phase 5 writes it) · ` +
+      `<a target="_blank" href="https://github.com/BreadchainCoop/jito-ncn-program/blob/main/docs/INTERFACES.md">account + event shapes ↗</a>`;
+    return;
+  }
+  let html =
+    `<b>NCN program</b> <a target="_blank" href="${explAddr(CFG.ncnProgramId)}"><span class="addr">${CFG.ncnProgramId}</span></a><br>` +
+    `<b>settlement program</b> <a target="_blank" href="${explAddr(CFG.settlementProgramId)}"><span class="addr">${CFG.settlementProgramId}</span></a><br>` +
+    `<b>stories260K state PDA</b> <a target="_blank" href="${explAddr(CFG.statePda)}"><span class="addr">${CFG.statePda}</span></a><br>`;
+  if (chainState) {
+    html +=
+      `<b>ncn account</b> <a target="_blank" href="${explAddr(chainState.ncn)}"><span class="addr">${chainState.ncn}</span></a><br>` +
+      `app_id <span class="addr">${short(chainState.app_id, 12)}</span> · ` +
+      `sim_profile <span class="addr">${short(chainState.sim_profile_id, 12)}</span> · ` +
+      `env_commitment <span class="addr">${short(chainState.env_commitment, 12)}</span><br>`;
+  }
+  html += `cluster <b>${cluster()}</b> · commitment <b>${commitment()}</b> · ` +
+    `<a target="_blank" href="https://github.com/BreadchainCoop/jito-ncn-program/blob/main/docs/INTERFACES.md">interface contract ↗</a>`;
+  $("contracts").innerHTML = html;
+}
+
+/* =================== boot =================== */
+async function initChain(){
+  STORY_META_DISC = (await sha256(new TextEncoder().encode("gk:story_meta"))).slice(0, 8);
+  await loadConfig();
+  chatNote();
+  renderContracts();
+  if (!configured) {
+    setPill("NOT DEPLOYED", "wait");
+    $("send").disabled = true;
+    addMsg("sys", "network not deployed yet — config.json has no endpoints. Nothing to read, nothing invented.");
+    loadHistory();
+    return;
+  }
+  addMsg("sys", "config loaded — reading " + cluster() + ". “Read the chain” fetches the newest committee-settled answer.");
+  $("history").textContent = "reading " + cluster() + "…";
+  try { await rpc("getVersion", []); }
+  catch(e){
+    setPill("RPC UNREACHABLE", "off");
+    $("send").disabled = true;
+    $("history").innerHTML = "configured RPC <code>" + esc(CFG.rpcUrl) +
+      "</code> is unreachable: " + esc(String(e.message || e)) +
+      " — nothing can be read, so nothing is shown.";
+    startWatch();
+    return;
+  }
+  $("send").disabled = false;
+  // deployment status: both programs must exist as executable accounts
+  let progOk = false;
+  try {
+    const [p1, p2] = await Promise.all([getAccount(CFG.ncnProgramId), getAccount(CFG.settlementProgramId)]);
+    progOk = !!(p1 && p1.executable && p2 && p2.executable);
+  } catch(e){}
+  try {
+    const acct = await getAccount(CFG.statePda);
+    if (!acct) setPill(progOk ? "AWAITING STATE INIT" : "NOT DEPLOYED", "wait");
+    else {
+      const st = decodeStatePda(b64ToBytes(acct.data[0]));
+      chainState = st;
+      if (st && st.transition_count > 0) setPill("LIVE", "live");
+      else setPill("AWAITING SETTLEMENTS", "wait");
+      lastCount = st ? st.transition_count : null;
+    }
+  } catch(e){ setPill("RPC ERROR", "off"); }
+  renderContracts();
+  loadHistory();
+  startWatch();
+}
+
+/* =================== bisection lab =================== */
+// deterministic toy hash for simulated commitments (NOT keccak/sha256 — visual only)
+function toyHash(s){
+  let h1=0x9e3779b9|0, h2=0x85ebca6b|0;
+  for (let i=0;i<s.length;i++){ const c=s.charCodeAt(i);
+    h1=Math.imul(h1^c,2654435761); h2=Math.imul(h2^c,1597334677); }
+  return (h1>>>0).toString(16).padStart(8,"0")+(h2>>>0).toString(16).padStart(8,"0");
+}
+let L = null;
+function labSetup(){
+  const m = $("lab-model").value, mode = $("lab-mode").value;
+  const n = m==="big" ? 64 : 24;
+  const gasPer = 44e6;   // stories260K — EVM reference sim, ~44M gas per generated token
+  const honest = mode==="honest";
+  const fault = honest ? -1 : 1 + Math.floor(Math.random()*(n-1));
+  // honest commitment chain
+  const good = ["genesis"]; for (let i=1;i<=n;i++) good.push(toyHash(good[i-1]+"|tok"+i));
+  // defender's (possibly corrupted from `fault` onward)
+  const claim = good.slice();
+  if (!honest) for (let i=fault;i<=n;i++) claim[i] = toyHash((i===fault?"FAULT":"")+claim[i-1]+"|tok"+i+"x");
+  L = { n, gasPer, honest, fault, good, claim, lo:0, hi:n, rounds:0,
+        maxRounds: Math.ceil(Math.log2(n)), done:false, log:[] };
+  const gp = gasPer>=1e9 ? (gasPer/1e9).toFixed(1)+"B" : (gasPer/1e6).toFixed(0)+"M";
+  labLog(`<span class="d">new dispute · ${n} segments · ~${gp} gas each (EVM reference) · defender ${honest?"HONEST":"faulty (segment hidden)"}</span>`);
+  labLog(`<span class="ch">challenger</span>: “final root <b>${("0x"+L.good[n]).slice(0,12)}…</b> ≠ your signed <b>0x${L.claim[n].slice(0,10)}…</b>”` +
+         (honest ? ` <span class="d">(the challenger is wrong)</span>` : ""));
+  labRender();
+}
+function labLog(html, final){ L.log.push({html, final});
+  $("roundlog").innerHTML = L.log.map(x=>`<div class="r ${x.final?"final":""}">${x.html}</div>`).join("");
+  $("roundlog").scrollTop = 1e9;
+}
+function labStep(){
+  if (!L || L.done) return;
+  const {lo, hi} = L;
+  if (hi - lo <= 1) { labFinish(); return; }
+  const mid = Math.floor((lo+hi)/2);
+  L.rounds++;
+  const agree = L.claim[mid] === L.good[mid];
+  labLog(`<b>round ${L.rounds}</b> · window [${lo}, ${hi}] · probe checkpoint <b>#${mid}</b><br>` +
+    `<span class="op">defender</span> posts 0x${L.claim[mid].slice(0,12)}… · ` +
+    `<span class="ch">challenger</span> computes 0x${L.good[mid].slice(0,12)}… → ` +
+    (agree ? `<span class="g">MATCH — fault is right of #${mid}</span>`
+           : `<span class="b">DIFFER — fault is at or left of #${mid}</span>`));
+  if (agree) L.lo = mid; else L.hi = mid;
+  if (L.hi - L.lo <= 1) labFinish();
+  labRender();
+}
+function labFinish(){
+  L.done = true;
+  if (L.honest) {
+    labLog(`<span class="g">window closed on segment ${L.hi} — re-execution matches the defender's claim. ` +
+      `Challenge fails; the challenger's bond is slashed. Honest operators cannot lose this game.</span>`, true);
+  } else {
+    const seg = L.hi;
+    labLog(`<span class="b">isolated segment #${seg}</span> — checkpoint #${seg-1} agreed, #${seg} differs. ` +
+      `One token's forward pass (~${fmtGas(L.gasPer)}) is re-executed off-chain in the SP1 guest under the pinned ` +
+      `<code>sim_profile_id</code> + <code>env_commitment</code> → the defender's claim is disproven → <b>slashed</b> ` +
+      `(on Solana: slasher-ticket roadmap, pending Jito's upstream Slash instruction). ` +
+      `Total dispute cost: ${L.rounds} checkpoint comparisons + one segment — ` +
+      `<b>${L.n}×</b> less compute than naive re-execution.`, true);
+  }
+  labRender();
+}
+async function labAuto(){
+  if (!L || L.done) labSetup();
+  while (!L.done) { labStep(); await new Promise(s=>setTimeout(s, 650)); }
+}
+function fmtGas(g){ return g>=1e9 ? (g/1e9).toFixed(1)+"B gas" : (g/1e6).toFixed(0)+"M gas"; }
+function labRender(){
+  const t = $("segtrack"), c = $("commitrow");
+  t.innerHTML = ""; c.innerHTML = "";
+  for (let i=1;i<=L.n;i++){
+    const s = document.createElement("div"); s.className = "seg";
+    if (i > L.lo && i <= L.hi) s.classList.add("inwin");
+    if (i <= L.lo) s.classList.add("pinned");
+    if (!L.honest && L.done && i === L.hi) s.classList.add("culprit");
+    if (!L.honest && i >= L.fault && !L.done) s.classList.add("divergent");
+    s.title = `segment ${i} · ~${fmtGas(L.gasPer)} (EVM reference)`;
+    t.appendChild(s);
+    const cm = document.createElement("div");
+    cm.className = "commit " + (L.claim[i]===L.good[i] ? "match" : "differ");
+    cm.textContent = L.n <= 40 ? L.claim[i].slice(0,4) : "";
+    c.appendChild(cm);
+  }
+  $("axis-mid").textContent = `window [${L.lo}, ${L.hi}]`;
+  $("axis-end").textContent = `token ${L.n}`;
+  $("st-total").textContent = fmtGas(L.n * L.gasPer);
+  $("st-window").textContent = (L.hi - L.lo) + " / " + L.n;
+  $("st-rounds").textContent = L.rounds + " / " + L.maxRounds;
+  $("st-onchain").textContent = L.done && !L.honest ? fmtGas(L.gasPer) : "—";
+  $("st-saving").textContent = L.done && !L.honest ? L.n + "× less compute" : "—";
+}
+
+/* =================== boot =================== */
+initChain();
+labSetup();
+</script>
+</body>
+</html>
