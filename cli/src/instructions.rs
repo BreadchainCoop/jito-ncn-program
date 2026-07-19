@@ -127,7 +127,11 @@ pub async fn admin_create_config(
     Ok(())
 }
 
-pub async fn admin_register_st_mint(handler: &CliHandler, vault: &Pubkey) -> Result<()> {
+pub async fn admin_register_st_mint(
+    handler: &CliHandler,
+    vault: &Pubkey,
+    weight_bps: u16,
+) -> Result<()> {
     let keypair = handler.keypair()?;
 
     let ncn = *handler.ncn()?;
@@ -145,7 +149,8 @@ pub async fn admin_register_st_mint(handler: &CliHandler, vault: &Pubkey) -> Res
         .admin(keypair.pubkey())
         .vault_registry(vault_registry)
         .ncn(ncn)
-        .st_mint(vault_account.supported_mint);
+        .st_mint(vault_account.supported_mint)
+        .weight_bps(weight_bps);
 
     let register_st_mint_ix = register_st_mint_builder.instruction();
 
@@ -157,6 +162,7 @@ pub async fn admin_register_st_mint(handler: &CliHandler, vault: &Pubkey) -> Res
         &[
             format!("NCN: {:?}", ncn),
             format!("ST Mint: {:?}", vault_account.supported_mint),
+            format!("Weight (bps): {}", weight_bps),
         ],
     )
     .await?;
@@ -601,6 +607,8 @@ pub async fn snapshot_vault_operator_delegation(
 
     let (snapshot, _, _) = Snapshot::find_program_address(&handler.ncn_program_id, &ncn);
 
+    let (vault_registry, _, _) = VaultRegistry::find_program_address(&handler.ncn_program_id, &ncn);
+
     let snapshot_vault_operator_delegation_ix = SnapshotVaultOperatorDelegationBuilder::new()
         .restaking_config(restaking_config)
         .config(config)
@@ -612,6 +620,7 @@ pub async fn snapshot_vault_operator_delegation(
         .ncn_vault_ticket(ncn_vault_ticket)
         .vault_operator_delegation(vault_operator_delegation)
         .snapshot(snapshot)
+        .vault_registry(vault_registry)
         .instruction();
 
     send_and_log_transaction(

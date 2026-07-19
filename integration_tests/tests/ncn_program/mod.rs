@@ -5,6 +5,7 @@ mod initialize_operator_snapshot;
 mod initialize_snapshot;
 mod initialize_vault_registry;
 mod meta_tests;
+mod multi_vault;
 mod register_operator;
 mod register_vault;
 mod remove_operator;

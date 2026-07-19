@@ -148,6 +148,7 @@ pub enum NCNProgramInstruction {
     #[account(7, name = "ncn_operator_state")]
     #[account(8, name = "vault_operator_delegation")]
     #[account(9, writable, name = "snapshot")]
+    #[account(10, name = "vault_registry")]
     SnapshotVaultOperatorDelegation{},
 
     // ---------------------------------------------------- //
@@ -208,5 +209,9 @@ pub enum NCNProgramInstruction {
     #[account(2, name = "st_mint")]
     #[account(3, writable, name = "vault_registry")]
     #[account(4, signer, writable, name = "admin")]
-    AdminRegisterStMint{ },
+    AdminRegisterStMint {
+        /// Weight applied to delegations of vaults holding this mint, in bps
+        /// of the delegated amount (1..=10_000; 10_000 = full weight)
+        weight_bps: u16,
+    },
 }

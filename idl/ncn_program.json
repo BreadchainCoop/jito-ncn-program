@@ -495,6 +495,11 @@
           "name": "snapshot",
           "isMut": true,
           "isSigner": false
+        },
+        {
+          "name": "vaultRegistry",
+          "isMut": false,
+          "isSigner": false
         }
       ],
       "args": [],
@@ -697,7 +702,12 @@
           "isSigner": true
         }
       ],
-      "args": [],
+      "args": [
+        {
+          "name": "weightBps",
+          "type": "u16"
+        }
+      ],
       "discriminant": {
         "type": "u8",
         "value": 13
@@ -933,7 +943,7 @@
                 {
                   "defined": "StMintEntry"
                 },
-                1
+                16
               ]
             }
           },
@@ -944,7 +954,7 @@
                 {
                   "defined": "VaultEntry"
                 },
-                1
+                16
               ]
             }
           }
@@ -1022,6 +1032,32 @@
       }
     },
     {
+      "name": "VaultContribution",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "registrySlot",
+            "type": {
+              "defined": "PodU64"
+            }
+          },
+          {
+            "name": "stakeWeight",
+            "type": {
+              "defined": "StakeWeights"
+            }
+          },
+          {
+            "name": "nextEpochStakeWeight",
+            "type": {
+              "defined": "StakeWeights"
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "OperatorSnapshot",
       "type": {
         "kind": "struct",
@@ -1092,6 +1128,17 @@
             "type": {
               "defined": "StakeWeights"
             }
+          },
+          {
+            "name": "vaultContributions",
+            "type": {
+              "array": [
+                {
+                  "defined": "VaultContribution"
+                },
+                16
+              ]
+            }
           }
         ]
       }
@@ -1142,6 +1189,12 @@
           {
             "name": "stMint",
             "type": "publicKey"
+          },
+          {
+            "name": "weightBps",
+            "type": {
+              "defined": "PodU16"
+            }
           },
           {
             "name": "reserveSwitchboardFeed",
@@ -1790,6 +1843,11 @@
       "code": 8809,
       "name": "CannotRemoveOperator",
       "msg": "Cannot remove operator: signer is not authorized"
+    },
+    {
+      "code": 8810,
+      "name": "InvalidWeightBps",
+      "msg": "Invalid weight bps"
     }
   ],
   "metadata": {

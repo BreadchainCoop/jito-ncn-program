@@ -12,6 +12,8 @@ import {
   fixEncoderSize,
   getAddressDecoder,
   getAddressEncoder,
+  getArrayDecoder,
+  getArrayEncoder,
   getBoolDecoder,
   getBoolEncoder,
   getBytesDecoder,
@@ -29,8 +31,12 @@ import {
 import {
   getStakeWeightsDecoder,
   getStakeWeightsEncoder,
+  getVaultContributionDecoder,
+  getVaultContributionEncoder,
   type StakeWeights,
   type StakeWeightsArgs,
+  type VaultContribution,
+  type VaultContributionArgs,
 } from '.';
 
 export type OperatorSnapshot = {
@@ -45,6 +51,7 @@ export type OperatorSnapshot = {
   hasMinimumStakeNextEpoch: number;
   stakeWeight: StakeWeights;
   nextEpochStakeWeight: StakeWeights;
+  vaultContributions: Array<VaultContribution>;
 };
 
 export type OperatorSnapshotArgs = {
@@ -59,6 +66,7 @@ export type OperatorSnapshotArgs = {
   hasMinimumStakeNextEpoch: number;
   stakeWeight: StakeWeightsArgs;
   nextEpochStakeWeight: StakeWeightsArgs;
+  vaultContributions: Array<VaultContributionArgs>;
 };
 
 export function getOperatorSnapshotEncoder(): Encoder<OperatorSnapshotArgs> {
@@ -74,6 +82,10 @@ export function getOperatorSnapshotEncoder(): Encoder<OperatorSnapshotArgs> {
     ['hasMinimumStakeNextEpoch', getBoolEncoder()],
     ['stakeWeight', getStakeWeightsEncoder()],
     ['nextEpochStakeWeight', getStakeWeightsEncoder()],
+    [
+      'vaultContributions',
+      getArrayEncoder(getVaultContributionEncoder(), { size: 16 }),
+    ],
   ]);
 }
 
@@ -90,6 +102,10 @@ export function getOperatorSnapshotDecoder(): Decoder<OperatorSnapshot> {
     ['hasMinimumStakeNextEpoch', getBoolDecoder()],
     ['stakeWeight', getStakeWeightsDecoder()],
     ['nextEpochStakeWeight', getStakeWeightsDecoder()],
+    [
+      'vaultContributions',
+      getArrayDecoder(getVaultContributionDecoder(), { size: 16 }),
+    ],
   ]);
 }
 

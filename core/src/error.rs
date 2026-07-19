@@ -244,6 +244,8 @@ pub enum NCNProgramError {
     InsufficientStakeBps,
     #[error("Cannot remove operator: signer is not authorized")]
     CannotRemoveOperator,
+    #[error("Invalid weight bps")]
+    InvalidWeightBps,
 }
 
 impl<T> DecodeError<T> for NCNProgramError {

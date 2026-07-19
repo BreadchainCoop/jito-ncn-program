@@ -13,5 +13,6 @@ export * from './fees';
 export * from './operatorSnapshot';
 export * from './stakeWeights';
 export * from './stMintEntry';
+export * from './vaultContribution';
 export * from './vaultEntry';
 export * from './vaultOperatorStakeWeight';

@@ -367,6 +367,9 @@ pub enum NcnProgramError {
     /// 8809 - Cannot remove operator: signer is not authorized
     #[error("Cannot remove operator: signer is not authorized")]
     CannotRemoveOperator = 0x2269,
+    /// 8810 - Invalid weight bps
+    #[error("Invalid weight bps")]
+    InvalidWeightBps = 0x226A,
 }
 
 impl solana_program::program_error::PrintProgramError for NcnProgramError {

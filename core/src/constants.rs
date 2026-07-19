@@ -5,8 +5,8 @@ use spl_math::precise_number::PreciseNumber;
 use crate::error::NCNProgramError;
 
 pub const MAX_FEE_BPS: u64 = 10_000;
-pub const MAX_ST_MINTS: usize = 1;
-pub const MAX_VAULTS: usize = 1;
+pub const MAX_ST_MINTS: usize = 16;
+pub const MAX_VAULTS: usize = 16;
 pub const MAX_OPERATORS: usize = 256;
 pub const MIN_EPOCHS_BEFORE_STALL: u64 = 1;
 pub const MAX_EPOCHS_BEFORE_STALL: u64 = 50;

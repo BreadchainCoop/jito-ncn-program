@@ -155,7 +155,14 @@ pub enum ProgramCommand {
         #[arg(long, help = "Minimum stake required for operators (in lamports)")]
         minimum_stake: u128,
     },
-    AdminRegisterStMint {},
+    AdminRegisterStMint {
+        #[arg(
+            long,
+            default_value_t = 10_000,
+            help = "Delegation weight in bps (1..=10000; 10000 = full weight)"
+        )]
+        weight_bps: u16,
+    },
 
     AdminSetTieBreaker {
         #[arg(long, help = "tie breaker for voting")]

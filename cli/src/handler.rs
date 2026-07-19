@@ -213,8 +213,8 @@ impl CliHandler {
                 )
                 .await
             }
-            ProgramCommand::AdminRegisterStMint {} => {
-                admin_register_st_mint(self, self.vault()).await
+            ProgramCommand::AdminRegisterStMint { weight_bps } => {
+                admin_register_st_mint(self, self.vault(), weight_bps).await
             }
             ProgramCommand::AdminSetTieBreaker { weather_status: _ } => {
                 // Tie breaker functionality has been removed

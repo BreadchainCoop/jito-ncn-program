@@ -252,6 +252,8 @@ export const NCN_PROGRAM_ERROR__SNAPSHOT_GENERATION_MISMATCH = 0x2267; // 8807
 export const NCN_PROGRAM_ERROR__INSUFFICIENT_STAKE_BPS = 0x2268; // 8808
 /** CannotRemoveOperator: Cannot remove operator: signer is not authorized */
 export const NCN_PROGRAM_ERROR__CANNOT_REMOVE_OPERATOR = 0x2269; // 8809
+/** InvalidWeightBps: Invalid weight bps */
+export const NCN_PROGRAM_ERROR__INVALID_WEIGHT_BPS = 0x226a; // 8810
 
 export type NcnProgramError =
   | typeof NCN_PROGRAM_ERROR__ACCOUNT_ALREADY_INITIALIZED
@@ -321,6 +323,7 @@ export type NcnProgramError =
   | typeof NCN_PROGRAM_ERROR__INVALID_OPERATOR_COUNT
   | typeof NCN_PROGRAM_ERROR__INVALID_OPERATOR_VOTER
   | typeof NCN_PROGRAM_ERROR__INVALID_SLOTS_AFTER_CONSENSUS
+  | typeof NCN_PROGRAM_ERROR__INVALID_WEIGHT_BPS
   | typeof NCN_PROGRAM_ERROR__MARKER_EXISTS
   | typeof NCN_PROGRAM_ERROR__MINT_ENTRY_NOT_FOUND
   | typeof NCN_PROGRAM_ERROR__MINT_IN_TABLE
@@ -444,6 +447,7 @@ if (process.env.NODE_ENV !== 'production') {
     [NCN_PROGRAM_ERROR__INVALID_OPERATOR_COUNT]: `Invalid operator count`,
     [NCN_PROGRAM_ERROR__INVALID_OPERATOR_VOTER]: `Operator voter needs to sign its vote`,
     [NCN_PROGRAM_ERROR__INVALID_SLOTS_AFTER_CONSENSUS]: `Invalid slots after consensus`,
+    [NCN_PROGRAM_ERROR__INVALID_WEIGHT_BPS]: `Invalid weight bps`,
     [NCN_PROGRAM_ERROR__MARKER_EXISTS]: `Marker exists`,
     [NCN_PROGRAM_ERROR__MINT_ENTRY_NOT_FOUND]: `Mint Entry not found`,
     [NCN_PROGRAM_ERROR__MINT_IN_TABLE]: `Mint is already in the table`,

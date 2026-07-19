@@ -196,9 +196,9 @@ pub fn process_instruction(
             msg!("Instruction: AdminSetNewAdmin");
             process_admin_set_new_admin(program_id, accounts, role)
         }
-        NCNProgramInstruction::AdminRegisterStMint {} => {
+        NCNProgramInstruction::AdminRegisterStMint { weight_bps } => {
             msg!("Instruction: AdminRegisterStMint");
-            process_admin_register_st_mint(program_id, accounts)
+            process_admin_register_st_mint(program_id, accounts, weight_bps)
         }
     }
 }

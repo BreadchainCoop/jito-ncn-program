@@ -21,8 +21,8 @@ pub struct VaultRegistry {
     )]
     pub ncn: Pubkey,
     pub bump: u8,
-    pub st_mint_list: [StMintEntry; 1],
-    pub vault_list: [VaultEntry; 1],
+    pub st_mint_list: [StMintEntry; 16],
+    pub vault_list: [VaultEntry; 16],
 }
 
 impl VaultRegistry {

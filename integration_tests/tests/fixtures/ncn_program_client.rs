@@ -24,7 +24,7 @@ use ncn_program_core::{
     fees::FeeConfig,
     ncn_operator_account::NCNOperatorAccount,
     snapshot::{OperatorSnapshot, Snapshot},
-    vault_registry::VaultRegistry,
+    vault_registry::{VaultRegistry, FULL_WEIGHT_BPS},
 };
 use solana_program::{
     instruction::InstructionError, native_token::sol_to_lamports, pubkey::Pubkey,
@@ -379,13 +379,24 @@ impl NCNProgramClient {
         ncn: Pubkey,
         st_mint: Pubkey,
     ) -> TestResult<()> {
+        self.do_admin_register_st_mint_with_weight(ncn, st_mint, FULL_WEIGHT_BPS)
+            .await
+    }
+
+    /// Registers an st_mint with an explicit delegation weight (bps).
+    pub async fn do_admin_register_st_mint_with_weight(
+        &mut self,
+        ncn: Pubkey,
+        st_mint: Pubkey,
+        weight_bps: u16,
+    ) -> TestResult<()> {
         let vault_registry = VaultRegistry::find_program_address(&ncn_program::id(), &ncn).0;
 
         let (ncn_config, _, _) = NcnConfig::find_program_address(&ncn_program::id(), &ncn);
 
         let admin = self.payer.pubkey();
 
-        self.admin_register_st_mint(ncn, ncn_config, vault_registry, admin, st_mint)
+        self.admin_register_st_mint(ncn, ncn_config, vault_registry, admin, st_mint, weight_bps)
             .await
     }
 
@@ -398,6 +409,7 @@ impl NCNProgramClient {
         vault_registry: Pubkey,
         admin: Pubkey,
         st_mint: Pubkey,
+        weight_bps: u16,
     ) -> TestResult<()> {
         let ix = {
             let mut builder = AdminRegisterStMintBuilder::new();
@@ -406,7 +418,8 @@ impl NCNProgramClient {
                 .ncn(ncn)
                 .vault_registry(vault_registry)
                 .admin(admin)
-                .st_mint(st_mint);
+                .st_mint(st_mint)
+                .weight_bps(weight_bps);
 
             builder.instruction()
         };
@@ -542,6 +555,8 @@ impl NCNProgramClient {
             NcnOperatorState::find_program_address(&jito_restaking_program::id(), &ncn, &operator)
                 .0;
 
+        let vault_registry = VaultRegistry::find_program_address(&ncn_program::id(), &ncn).0;
+
         let ix = SnapshotVaultOperatorDelegationBuilder::new()
             .config(config_pda)
             .restaking_config(restaking_config)
@@ -553,6 +568,7 @@ impl NCNProgramClient {
             .vault_operator_delegation(vault_operator_delegation)
             .ncn_operator_state(ncn_operator_state)
             .snapshot(snapshot)
+            .vault_registry(vault_registry)
             .instruction();
 
         let blockhash = self.banks_client.get_latest_blockhash().await?;

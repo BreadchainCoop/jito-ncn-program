@@ -10,6 +10,8 @@ import {
   combineCodec,
   getStructDecoder,
   getStructEncoder,
+  getU16Decoder,
+  getU16Encoder,
   getU8Decoder,
   getU8Encoder,
   transformEncoder,
@@ -66,13 +68,19 @@ export type AdminRegisterStMintInstruction<
     ]
   >;
 
-export type AdminRegisterStMintInstructionData = { discriminator: number };
+export type AdminRegisterStMintInstructionData = {
+  discriminator: number;
+  weightBps: number;
+};
 
-export type AdminRegisterStMintInstructionDataArgs = {};
+export type AdminRegisterStMintInstructionDataArgs = { weightBps: number };
 
 export function getAdminRegisterStMintInstructionDataEncoder(): Encoder<AdminRegisterStMintInstructionDataArgs> {
   return transformEncoder(
-    getStructEncoder([['discriminator', getU8Encoder()]]),
+    getStructEncoder([
+      ['discriminator', getU8Encoder()],
+      ['weightBps', getU16Encoder()],
+    ]),
     (value) => ({
       ...value,
       discriminator: ADMIN_REGISTER_ST_MINT_DISCRIMINATOR,
@@ -81,7 +89,10 @@ export function getAdminRegisterStMintInstructionDataEncoder(): Encoder<AdminReg
 }
 
 export function getAdminRegisterStMintInstructionDataDecoder(): Decoder<AdminRegisterStMintInstructionData> {
-  return getStructDecoder([['discriminator', getU8Decoder()]]);
+  return getStructDecoder([
+    ['discriminator', getU8Decoder()],
+    ['weightBps', getU16Decoder()],
+  ]);
 }
 
 export function getAdminRegisterStMintInstructionDataCodec(): Codec<
@@ -106,6 +117,7 @@ export type AdminRegisterStMintInput<
   stMint: Address<TAccountStMint>;
   vaultRegistry: Address<TAccountVaultRegistry>;
   admin: TransactionSigner<TAccountAdmin>;
+  weightBps: AdminRegisterStMintInstructionDataArgs['weightBps'];
 };
 
 export function getAdminRegisterStMintInstruction<
@@ -148,6 +160,9 @@ export function getAdminRegisterStMintInstruction<
     ResolvedAccount
   >;
 
+  // Original args.
+  const args = { ...input };
+
   const getAccountMeta = getAccountMetaFactory(programAddress, 'programId');
   const instruction = {
     accounts: [
@@ -158,7 +173,9 @@ export function getAdminRegisterStMintInstruction<
       getAccountMeta(accounts.admin),
     ],
     programAddress,
-    data: getAdminRegisterStMintInstructionDataEncoder().encode({}),
+    data: getAdminRegisterStMintInstructionDataEncoder().encode(
+      args as AdminRegisterStMintInstructionDataArgs
+    ),
   } as AdminRegisterStMintInstruction<
     TProgramAddress,
     TAccountConfig,
