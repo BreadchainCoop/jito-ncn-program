@@ -1,0 +1,24 @@
+[package]
+name = "llm-payload-producer"
+version = { workspace = true }
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+edition = { workspace = true }
+readme = { workspace = true }
+description = "Track D: turns a real Gas Killer LLM EVM simulation into the Solana SettlementPayload fixture (docs/INTERFACES.md sections 4 and 6)"
+
+[[bin]]
+name = "llm-payload-producer"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+base64 = { workspace = true }
+borsh = { workspace = true }
+clap = { workspace = true }
+hex = { workspace = true }
+serde = { workspace = true }
+serde_json = "1.0"
+sha2 = { workspace = true }

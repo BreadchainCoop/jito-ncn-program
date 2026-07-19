@@ -1,0 +1,11 @@
+{
+  "prompt": "Once upon a time",
+  "story_utf8": ", there was a little girl named Lily. She loved to play outside in the park. One day, she saw a big, red ball. She wanted to play with it, but it was too high.\nLily's mom said, \"Lily, let's go to the park.\" Lily was sad and didn't know what to do. She said, \"I want to play with your ball, but I can't find it.\"\nLily was sad and didn't know what to do. She said, \"I'm sorry, Lily. I didn't know what to do.\"\nLily didn't want to help her mom, so she said, \"I",
+  "story_sha256_hex": "98f77c3b2d2025d5ad628eff93bced73f90a2efc4e22fbe4b6778c69fdf37f14",
+  "payload_borsh_base64": "AAAAAAAAAAB4i+2bvw6GKxpVrKwadY8ubpZncm3XKxJOkEFDK4o6Zl6bHxpDf6DDAgAAAADuDdT7K1vJE8trAfCWTPCjNtwEqnnCRgZ/+3hB1Hi31gHMp1XioqJb7UQAAACY93w7LSAl1a1ijv+TvO1z+Qou/E4i++S2d4xp/fN/FKgUI/H0YDws3dCgkypYT0n5FNuG2Ew9+1pIp7uJD8qdyQEAAA==",
+  "digest_hex": "374b70d839fd1f850e2722c47944feec40f775466245a1d4f31a8ae21022da7c",
+  "source": {
+    "sim_command": "in gas-killer/solidity-sdk @ d44f65d: anvil --gas-limit 1099511627776 --port 8561 & cast rpc anvil_setBalance $SENDER 0xffffffffffffffffffffffffffffffff && MOCK=$(forge create test/examples/OnchainLLM.t.sol:MockBLSSignatureChecker --rpc-url http://127.0.0.1:8561 --private-key $PK --broadcast | awk '/Deployed to/{print $3}') && AVS_ADDRESS=0x0000000000000000000000000000000000001234 SIG_CHECKER_ADDRESS=$MOCK forge script script/DeployOnchainLLM.s.sol --rpc-url http://127.0.0.1:8561 --private-key $PK --broadcast && cast send $DEPLOYED_TARGET 'tellStory(string,uint256)' 'Once upon a time' 200 --rpc-url http://127.0.0.1:8561 --private-key $PK --gas-limit 15000000000  # real run: 10465037826 gas, tx 0xbe4131a8c207d7f852a1475caeb30f3dcde59114195eacaf204be9d5c14063c2, StoryTold newRoot == storyRoot() == computeStoryRoot(0x0, prompt, story)",
+    "solidity_sdk_commit": "d44f65d6267cf68edc86c64cff446d1d4fe48d06"
+  }
+}
