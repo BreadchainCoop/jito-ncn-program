@@ -39,20 +39,20 @@ dotenv = "0.15.0"
 env_logger = "0.10.2"
 envfile = "0.2.1"
 hex = "0.4.3"
-jito-bytemuck = { package = "jito-bytemuck", git = "https://github.com/jito-foundation/restaking", branch = "v2.1-upgrade" }
-jito-jsm-core = { package = "jito-jsm-core", git = "https://github.com/jito-foundation/restaking", branch = "v2.1-upgrade" }
-jito-restaking-client = { package = "jito-restaking-client", git = "https://github.com/jito-foundation/restaking", branch = "v2.1-upgrade" }
-jito-restaking-core = { package = "jito-restaking-core", git = "https://github.com/jito-foundation/restaking", branch = "v2.1-upgrade" }
-jito-restaking-program = { package = "jito-restaking-program", git = "https://github.com/jito-foundation/restaking", branch = "v2.1-upgrade", features = [
+jito-bytemuck = { package = "jito-bytemuck", git = "https://github.com/jito-foundation/restaking", rev = "358fbc3c20d947c977a136808f9fbf7f070e478b" }
+jito-jsm-core = { package = "jito-jsm-core", git = "https://github.com/jito-foundation/restaking", rev = "358fbc3c20d947c977a136808f9fbf7f070e478b" }
+jito-restaking-client = { package = "jito-restaking-client", git = "https://github.com/jito-foundation/restaking", rev = "358fbc3c20d947c977a136808f9fbf7f070e478b" }
+jito-restaking-core = { package = "jito-restaking-core", git = "https://github.com/jito-foundation/restaking", rev = "358fbc3c20d947c977a136808f9fbf7f070e478b" }
+jito-restaking-program = { package = "jito-restaking-program", git = "https://github.com/jito-foundation/restaking", rev = "358fbc3c20d947c977a136808f9fbf7f070e478b", features = [
   "no-entrypoint",
 ] }
-jito-restaking-sdk = { package = "jito-restaking-sdk", git = "https://github.com/jito-foundation/restaking", branch = "v2.1-upgrade" }
-jito-vault-client = { package = "jito-vault-client", git = "https://github.com/jito-foundation/restaking", branch = "v2.1-upgrade" }
-jito-vault-core = { package = "jito-vault-core", git = "https://github.com/jito-foundation/restaking", branch = "v2.1-upgrade" }
-jito-vault-program = { package = "jito-vault-program", git = "https://github.com/jito-foundation/restaking", branch = "v2.1-upgrade", features = [
+jito-restaking-sdk = { package = "jito-restaking-sdk", git = "https://github.com/jito-foundation/restaking", rev = "358fbc3c20d947c977a136808f9fbf7f070e478b" }
+jito-vault-client = { package = "jito-vault-client", git = "https://github.com/jito-foundation/restaking", rev = "358fbc3c20d947c977a136808f9fbf7f070e478b" }
+jito-vault-core = { package = "jito-vault-core", git = "https://github.com/jito-foundation/restaking", rev = "358fbc3c20d947c977a136808f9fbf7f070e478b" }
+jito-vault-program = { package = "jito-vault-program", git = "https://github.com/jito-foundation/restaking", rev = "358fbc3c20d947c977a136808f9fbf7f070e478b", features = [
   "no-entrypoint",
 ] }
-jito-vault-sdk = { package = "jito-vault-sdk", git = "https://github.com/jito-foundation/restaking", branch = "v2.1-upgrade" }
+jito-vault-sdk = { package = "jito-vault-sdk", git = "https://github.com/jito-foundation/restaking", rev = "358fbc3c20d947c977a136808f9fbf7f070e478b" }
 log = "0.4.22"
 ncn-program = { path = "./program", version = "=0.0.1" }
 ncn-program-cli = { path = "./cli", version = "0.0.1" }
