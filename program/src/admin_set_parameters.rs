@@ -1,12 +1,16 @@
-use jito_bytemuck::{types::PodU64, AccountDeserialize};
+use jito_bytemuck::{
+    types::{PodU16, PodU64},
+    AccountDeserialize,
+};
 use jito_jsm_core::loader::load_signer;
 use jito_restaking_core::ncn::Ncn;
 use ncn_program_core::{
     config::Config,
     constants::{
-        MAX_EPOCHS_AFTER_CONSENSUS_BEFORE_CLOSE, MAX_EPOCHS_BEFORE_STALL,
-        MAX_VALID_SLOTS_AFTER_CONSENSUS, MIN_EPOCHS_AFTER_CONSENSUS_BEFORE_CLOSE,
-        MIN_EPOCHS_BEFORE_STALL, MIN_VALID_SLOTS_AFTER_CONSENSUS,
+        MAX_CONSENSUS_THRESHOLD_BPS, MAX_EPOCHS_AFTER_CONSENSUS_BEFORE_CLOSE,
+        MAX_EPOCHS_BEFORE_STALL, MAX_VALID_SLOTS_AFTER_CONSENSUS, MIN_CONSENSUS_THRESHOLD_BPS,
+        MIN_EPOCHS_AFTER_CONSENSUS_BEFORE_CLOSE, MIN_EPOCHS_BEFORE_STALL,
+        MIN_VALID_SLOTS_AFTER_CONSENSUS,
     },
     error::NCNProgramError,
     stake_weight::StakeWeights,
@@ -23,11 +27,13 @@ use solana_program::{
 /// - `epochs_before_stall`: Optional number of epochs before stall
 /// - `epochs_after_consensus_before_close`: Optional number of epochs after consensus before close
 /// - `valid_slots_after_consensus`: Optional number of valid slots after consensus
+/// - `consensus_threshold_bps`: Optional stake-weighted consensus threshold (bps, 1..=10000)
 ///
 /// ### Accounts:
 /// 1. `[writable]` config: NCN configuration account
 /// 2. `[]` ncn: The NCN account
 /// 3. `[signer]` ncn_admin: Admin authority for the NCN
+#[allow(clippy::too_many_arguments)]
 pub fn process_admin_set_parameters(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -36,6 +42,7 @@ pub fn process_admin_set_parameters(
     epochs_after_consensus_before_close: Option<u64>,
     minimum_stake: Option<u128>,
     valid_slots_after_consensus: Option<u64>,
+    consensus_threshold_bps: Option<u16>,
 ) -> ProgramResult {
     let [config, ncn_account, ncn_admin] = accounts else {
         msg!("Error: Not enough account keys provided");
@@ -125,6 +132,19 @@ pub fn process_admin_set_parameters(
             minimum_stake.stake_weight()
         );
         config.minimum_stake = minimum_stake;
+    }
+
+    if let Some(threshold_bps) = consensus_threshold_bps {
+        if !(MIN_CONSENSUS_THRESHOLD_BPS..=MAX_CONSENSUS_THRESHOLD_BPS).contains(&threshold_bps) {
+            msg!("Error: Invalid consensus_threshold_bps value");
+            return Err(NCNProgramError::InvalidConsensusThresholdBps.into());
+        }
+        msg!(
+            "Updating consensus_threshold_bps from {} to {}",
+            config.consensus_threshold_bps(),
+            threshold_bps
+        );
+        config.consensus_threshold_bps = PodU16::from(threshold_bps);
     }
 
     Ok(())

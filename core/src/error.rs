@@ -236,6 +236,8 @@ pub enum NCNProgramError {
     NoOperatorsRegistered,
     #[error("Invalid operator count")]
     InvalidOperatorCount,
+    #[error("Invalid consensus threshold bps")]
+    InvalidConsensusThresholdBps,
 }
 
 impl<T> DecodeError<T> for NCNProgramError {

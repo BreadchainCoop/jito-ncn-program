@@ -173,6 +173,7 @@ pub fn process_instruction(
             epochs_after_consensus_before_close,
             valid_slots_after_consensus,
             minimum_stake,
+            consensus_threshold_bps,
         } => {
             msg!("Instruction: AdminSetParameters");
             process_admin_set_parameters(
@@ -183,6 +184,7 @@ pub fn process_instruction(
                 epochs_after_consensus_before_close,
                 minimum_stake,
                 valid_slots_after_consensus,
+                consensus_threshold_bps,
             )
         }
         NCNProgramInstruction::AdminSetNewAdmin { role } => {

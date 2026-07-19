@@ -678,6 +678,7 @@ impl NCNProgramClient {
     }
 
     /// Sets various parameters in the NCN config (admin operation).
+    #[allow(clippy::too_many_arguments)]
     pub async fn do_set_parameters(
         &mut self,
         starting_valid_epoch: Option<u64>,
@@ -685,6 +686,7 @@ impl NCNProgramClient {
         epochs_after_consensus_before_close: Option<u64>,
         valid_slots_after_consensus: Option<u64>,
         minimum_stake: Option<u128>,
+        consensus_threshold_bps: Option<u16>,
         ncn_root: &NcnRoot,
     ) -> TestResult<()> {
         let config_pda =
@@ -713,6 +715,10 @@ impl NCNProgramClient {
 
         if let Some(minimum_stake) = minimum_stake {
             ix.minimum_stake(minimum_stake);
+        }
+
+        if let Some(threshold_bps) = consensus_threshold_bps {
+            ix.consensus_threshold_bps(threshold_bps);
         }
 
         let blockhash = self.banks_client.get_latest_blockhash().await?;

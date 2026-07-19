@@ -178,6 +178,8 @@ pub enum NCNProgramInstruction {
         epochs_after_consensus_before_close: Option<u64>,
         valid_slots_after_consensus: Option<u64>,
         minimum_stake: Option<u128>,
+        /// Stake-weighted consensus threshold in bps of total snapshot stake (1..=10000)
+        consensus_threshold_bps: Option<u16>,
     },
 
 
