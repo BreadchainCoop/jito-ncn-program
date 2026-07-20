@@ -30,9 +30,10 @@ use solana_program::{
     instruction::InstructionError, native_token::sol_to_lamports, pubkey::Pubkey,
     system_instruction::transfer,
 };
-use solana_program_test::{BanksClient, ProgramTestBanksClientExt};
+use solana_program_test::{BanksClient, BanksClientError, ProgramTestBanksClientExt};
 use solana_sdk::{
     commitment_config::CommitmentLevel,
+    hash::Hash,
     compute_budget::ComputeBudgetInstruction,
     signature::{Keypair, Signer},
     system_program,
@@ -59,9 +60,21 @@ impl NCNProgramClient {
     }
 
     /// Processes a transaction using the BanksClient with processed commitment level.
+    //
+    // NB: intentionally NOT the `_with_preflight_` variant. solana-program-test
+    // runs a wall-clock PohService that registers a fresh blockhash every
+    // ~100us*ticks_per_slot, so the 300-entry recent-blockhash queue turns over
+    // in ~2s of wall-clock time. The preflight path simulates the (BN254-heavy)
+    // transaction BEFORE validating its blockhash; under nextest parallelism the
+    // simulation can be starved long enough that the blockhash is evicted before
+    // validation, surfacing as a nondeterministic
+    // ClientError("invalid blockhash or fee-payer"). The non-preflight path
+    // validates the blockhash promptly (the slow execution happens afterward on
+    // a separate channel), which removes the race. Execution errors still return
+    // TransactionError, so assert_ncn_program_error keeps working.
     pub async fn process_transaction(&mut self, tx: &Transaction) -> TestResult<()> {
         self.banks_client
-            .process_transaction_with_preflight_and_commitment(
+            .process_transaction_with_commitment(
                 tx.clone(),
                 CommitmentLevel::Processed,
             )
@@ -69,16 +82,39 @@ impl NCNProgramClient {
         Ok(())
     }
 
+    /// Returns a recent blockhash guaranteed to differ from the last one this
+    /// client handed out.
+    ///
+    /// solana-program-test's wall-clock PohService registers new blockhashes on
+    /// a timer, so two transactions built close together (a fast/unloaded
+    /// moment) can share a blockhash. Two transactions that are otherwise
+    /// IDENTICAL (same instruction data, accounts, and signers) then have the
+    /// same signature, and BanksClient treats the second as a duplicate —
+    /// returning the FIRST transaction's cached result instead of executing the
+    /// second. That silently breaks any test that (a) expects a second
+    /// identical call to fail on-chain (e.g. remove-operator-twice) or
+    /// (b) re-cranks the same accounts and reads the updated state (e.g. the
+    /// vault-operator-delegation snapshot). Forcing a distinct blockhash per
+    /// submission gives every transaction a distinct signature, so each one
+    /// actually executes. The bank only ever mints brand-new unique hashes, so
+    /// "different from the immediately preceding one" is sufficient for global
+    /// uniqueness.
+    /// Recent blockhash guaranteed distinct from the last one used by any
+    /// client in this test (see `crate::fixtures::fresh_blockhash`).
+    async fn fresh_blockhash(&mut self) -> Result<Hash, BanksClientError> {
+        crate::fixtures::fresh_blockhash(&mut self.banks_client).await
+    }
+
     /// Airdrops SOL to a specified public key.
     pub async fn airdrop(&mut self, to: &Pubkey, sol: f64) -> TestResult<()> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         let new_blockhash = self
             .banks_client
             .get_new_latest_blockhash(&blockhash)
             .await
             .unwrap();
         self.banks_client
-            .process_transaction_with_preflight_and_commitment(
+            .process_transaction_with_commitment(
                 Transaction::new_signed_with_payer(
                     &[transfer(&self.payer.pubkey(), to, sol_to_lamports(sol))],
                     Some(&self.payer.pubkey()),
@@ -239,7 +275,7 @@ impl NCNProgramClient {
             .ncn_fee_bps(ncn_fee_bps)
             .instruction();
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[ix],
             Some(&ncn_admin.pubkey()),
@@ -279,7 +315,7 @@ impl NCNProgramClient {
             .role(role)
             .instruction();
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[ix],
             Some(&ncn_root.ncn_admin.pubkey()),
@@ -321,7 +357,7 @@ impl NCNProgramClient {
             .system_program(system_program::id())
             .instruction();
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[ix],
             Some(&self.payer.pubkey()),
@@ -363,7 +399,7 @@ impl NCNProgramClient {
             .ncn_vault_ticket(ncn_vault_ticket)
             .instruction();
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[ix],
             Some(&self.payer.pubkey()),
@@ -424,7 +460,7 @@ impl NCNProgramClient {
             builder.instruction()
         };
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[ix],
             Some(&self.payer.pubkey()),
@@ -452,7 +488,7 @@ impl NCNProgramClient {
             .system_program(system_program::id())
             .instruction();
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[ix],
             Some(&self.payer.pubkey()),
@@ -504,7 +540,7 @@ impl NCNProgramClient {
 
         let ixs = vec![ix; num_reallocations as usize];
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &ixs,
             Some(&self.payer.pubkey()),
@@ -571,7 +607,7 @@ impl NCNProgramClient {
             .vault_registry(vault_registry)
             .instruction();
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[ix],
             Some(&self.payer.pubkey()),
@@ -637,7 +673,7 @@ impl NCNProgramClient {
             .expected_generation(expected_generation)
             .instruction();
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[compute_budget_ix, ix],
             Some(&self.payer.pubkey()),
@@ -691,7 +727,7 @@ impl NCNProgramClient {
             ix.consensus_threshold_bps(threshold_bps);
         }
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[ix.instruction()],
             Some(&ncn_root.ncn_admin.pubkey()),
@@ -775,7 +811,7 @@ impl NCNProgramClient {
 
         let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_000_000);
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[ix, compute_budget_ix],
             Some(&self.payer.pubkey()),
@@ -804,7 +840,7 @@ impl NCNProgramClient {
             .snapshot(snapshot)
             .instruction();
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[ix],
             Some(&self.payer.pubkey()),
@@ -871,7 +907,7 @@ impl NCNProgramClient {
 
         let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_000_000);
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[ix, compute_budget_ix],
             Some(&self.payer.pubkey()),
@@ -930,7 +966,7 @@ impl NCNProgramClient {
 
         let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_000_000);
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[ix, compute_budget_ix],
             Some(&self.payer.pubkey()),
