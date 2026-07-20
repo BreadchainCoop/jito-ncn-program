@@ -522,16 +522,27 @@ impl TestBuilder {
 
     /// Takes snapshots of VaultOperatorDelegation for all active operator-vault pairs in the TestNcn for the current epoch.
     /// Ensures vaults are updated if necessary before snapshotting.
+    ///
+    /// Deterministic cranking: the round starts by warping to a fresh slot.
+    /// Successive rounds that crank the same (vault, operator) pair build
+    /// byte-identical transactions; a warp forces the bank to register a new
+    /// blockhash (`fill_bank_with_ticks_for_tests`), so a later round's crank
+    /// can never share a blockhash — and therefore a signature — with an
+    /// earlier one. Without this, two identical cranks landing inside one
+    /// wall-clock blockhash window make the second a duplicate signature that
+    /// BanksClient answers from the status cache (the first crank's Ok)
+    /// WITHOUT executing it, silently leaving the pre-change delegation in
+    /// the snapshot (the "asserts 11000, reads 1000" flake). The warp also
+    /// makes `last_snapshot_slot` strictly increase from round to round, so
+    /// slot assertions hold for any drift.
     // 9. Take all VaultOperatorDelegation snapshots
     pub async fn add_vault_operator_delegation_snapshots_to_test_ncn(
         &mut self,
         test_ncn: &TestNcn,
     ) -> TestResult<()> {
-        let mut ncn_program_client = self.ncn_program_client();
-        let mut vault_program_client = self.vault_program_client();
+        self.warp_slot_incremental(1).await?;
 
-        let clock = self.clock().await;
-        let slot = clock.slot;
+        let mut ncn_program_client = self.ncn_program_client();
         let ncn = test_ncn.ncn_root.ncn_pubkey;
 
         let operators_for_update = test_ncn
@@ -555,15 +566,13 @@ impl TestBuilder {
             for vault_root in test_ncn.vaults.iter() {
                 let vault = vault_root.vault_pubkey;
 
-                let vault_is_update_needed = vault_program_client
-                    .get_vault_is_update_needed(&vault, slot)
+                // Bring the vault's update state current as of the slot the
+                // snapshot instruction will execute in (freshly re-read, not
+                // a slot cached from before the loop), so the delegation
+                // state the snapshot reads is always the post-update state
+                // regardless of slot drift.
+                self.crank_vault_update_to_current(&vault, &operators_for_update)
                     .await?;
-
-                if vault_is_update_needed {
-                    vault_program_client
-                        .do_full_vault_update(&vault, &operators_for_update)
-                        .await?;
-                }
 
                 ncn_program_client
                     .do_snapshot_vault_operator_delegation(vault, operator, ncn)
@@ -571,6 +580,54 @@ impl TestBuilder {
             }
         }
 
+        Ok(())
+    }
+
+    /// Brings `vault`'s update state current for the epoch of the *current*
+    /// slot and verifies it landed. The slot is re-read on every attempt
+    /// (never cached across awaits) so the update-needed decision cannot go
+    /// stale, and the post-condition is re-checked after each full update so
+    /// the invariant "the vault is current when the next instruction
+    /// executes" holds even if the clock moves between the check and the
+    /// crank. If the vault still needs an update after the attempts, this
+    /// fails deterministically — naming the vault and slot — instead of
+    /// letting a later instruction read stale delegation state.
+    pub async fn crank_vault_update_to_current(
+        &mut self,
+        vault: &Pubkey,
+        operators: &[Pubkey],
+    ) -> TestResult<()> {
+        let mut vault_program_client = self.vault_program_client();
+
+        // Two attempts cover an epoch boundary moving between the check and
+        // the crank. Slots in solana-program-test only move via explicit
+        // warps, so the first attempt is expected to settle it.
+        const MAX_UPDATE_ATTEMPTS: usize = 2;
+
+        for _ in 0..MAX_UPDATE_ATTEMPTS {
+            let slot = self.clock().await.slot;
+            let update_needed = vault_program_client
+                .get_vault_is_update_needed(vault, slot)
+                .await?;
+            if !update_needed {
+                return Ok(());
+            }
+            vault_program_client
+                .do_full_vault_update(vault, operators)
+                .await?;
+        }
+
+        let slot = self.clock().await.slot;
+        if vault_program_client
+            .get_vault_is_update_needed(vault, slot)
+            .await?
+        {
+            return Err(std::io::Error::other(format!(
+                "vault {vault} still needs an update at slot {slot} \
+                 after {MAX_UPDATE_ATTEMPTS} full vault updates"
+            ))
+            .into());
+        }
         Ok(())
     }
 

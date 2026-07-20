@@ -110,13 +110,29 @@ mod tests {
             2
         );
 
-        // Re-cranking a vault replaces its contribution (no double count)
+        // Re-cranking a vault replaces its contribution (no double count).
+        // Warp to a fresh slot first: the re-crank builds a transaction
+        // byte-identical to the round above, and under a shared blockhash the
+        // status cache would swallow it as a duplicate signature (cached Ok,
+        // never executed), making these assertions pass vacuously. The warp
+        // registers a new blockhash, and the advanced `last_snapshot_slot`
+        // proves the re-crank actually executed.
+        fixture.warp_slot_incremental(1).await?;
+        fixture
+            .crank_vault_update_to_current(&test_ncn.vaults[1].vault_pubkey, &[operator])
+            .await?;
+        let recrank_slot = fixture.clock().await.slot;
         ncn_program_client
             .do_snapshot_vault_operator_delegation(test_ncn.vaults[1].vault_pubkey, operator, ncn)
             .await?;
 
         let snapshot = ncn_program_client.get_snapshot(ncn).await?;
         let operator_snapshot = snapshot.find_operator_snapshot(&operator).unwrap();
+        assert_eq!(
+            operator_snapshot.last_snapshot_slot(),
+            recrank_slot,
+            "re-crank did not execute (stale last_snapshot_slot)"
+        );
         assert_eq!(operator_snapshot.stake_weight().stake_weight(), 150);
         assert_eq!(
             operator_snapshot
