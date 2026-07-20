@@ -1,6 +1,24 @@
 # Known flaky integration tests (tracked)
 
-Status 2026-07-20: three tests fail intermittently (~1-in-6 full parallel runs;
+## RESOLVED 2026-07-20
+
+All three flakes were one root cause — solana-program-test's status cache
+returning a byte-identical transaction's prior result without re-executing —
+not a slot race (the slot never advances on wall-clock in this program-test
+version). Fixed on main by:
+- `test-determinism-blockhash` (merge 9013404): a unique-recent-blockhash
+  cursor per submitted transaction in the shared fixture clients, so no two
+  submissions can share a signature.
+- `test-determinism-crank` (merge dac0ad2): per-round slot warps + a
+  current-vault-update helper in the crank test helpers (defense in depth).
+Verified on the merged tree: 6/6 consecutive full `nextest` runs 66/66,
+0 failures; fmt + clippy gates clean. (An occasional "leaky" advisory remains
+under heavy machine load — it is a nextest pass, an unjoinable framework-thread
+teardown notice, not a failure.)
+
+The original diagnosis, kept for the record:
+
+## Historical (Status 2026-07-20): three tests fail intermittently (~1-in-6 full parallel runs;
 one ~1-in-12 even in isolation). Program logic is verified correct — these are
 test-harness artifacts of solana-program-test's wall-clock PoH.
 
