@@ -1,7 +1,10 @@
-use std::cell::RefCell;
+use std::{
+    cell::RefCell,
+    time::{Duration, Instant},
+};
 
 use solana_program::{instruction::InstructionError, program_error::ProgramError};
-use solana_program_test::{BanksClient, BanksClientError, ProgramTestBanksClientExt};
+use solana_program_test::{BanksClient, BanksClientError};
 use solana_sdk::{hash::Hash, transaction::TransactionError};
 use thiserror::Error;
 
@@ -37,15 +40,41 @@ thread_local! {
 /// globally (not per client instance) closes the gap where two identical
 /// transactions are built through DIFFERENT short-lived client objects. The
 /// bank only ever mints brand-new unique hashes, so "different from the
-/// immediately preceding one" is sufficient for global uniqueness.
+/// immediately preceding one" is sufficient for global uniqueness: every value
+/// this function returns is a hash the bank registered AFTER the previously
+/// returned one, so no two callers ever receive the same hash.
+///
+/// The wait is a tight bounded poll rather than
+/// `ProgramTestBanksClientExt::get_new_latest_blockhash` (which sleeps 200ms
+/// between polls and gives up after 5s). `ProgramTestContext` runs a simulated
+/// PohService on this same runtime that registers a new unique hash every
+/// `target_slot_duration` (~6.4ms with the 100us default tick), so a 5ms poll
+/// typically resolves a collision in one or two iterations. The generous
+/// deadline is a fail-loud guard for pathological scheduler starvation only —
+/// the PohService cannot legitimately stall while this loop is yielding.
+/// (A `warp_to_slot` fallback was considered and rejected: the clients hold
+/// only a `BanksClient`, not the `ProgramTestContext`, and warping mid-test
+/// would perturb the many slot/epoch-sensitive tests in this suite.)
 pub async fn fresh_blockhash(banks_client: &mut BanksClient) -> Result<Hash, BanksClientError> {
+    const POLL_INTERVAL: Duration = Duration::from_millis(5);
+    const STALL_DEADLINE: Duration = Duration::from_secs(15);
+
     let last = LAST_BLOCKHASH.with(|cell| *cell.borrow());
-    let mut blockhash = banks_client.get_latest_blockhash().await?;
-    if Some(blockhash) == last {
-        // Unchanged since our last submission — wait for the PohService to
-        // register a new one so this transaction's signature is distinct.
-        blockhash = banks_client.get_new_latest_blockhash(&blockhash).await?;
-    }
+    let start = Instant::now();
+    let blockhash = loop {
+        let candidate = banks_client.get_latest_blockhash().await?;
+        if Some(candidate) != last {
+            break candidate;
+        }
+        // Unchanged since our last submission — yield until the PohService
+        // registers a new one so this transaction's signature is distinct.
+        if start.elapsed() > STALL_DEADLINE {
+            return Err(BanksClientError::ClientError(
+                "PoH stalled: no new blockhash registered within the stall deadline",
+            ));
+        }
+        tokio::time::sleep(POLL_INTERVAL).await;
+    };
     LAST_BLOCKHASH.with(|cell| *cell.borrow_mut() = Some(blockhash));
     Ok(blockhash)
 }

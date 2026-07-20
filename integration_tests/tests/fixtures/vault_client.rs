@@ -30,7 +30,7 @@ use solana_program::{
     rent::Rent,
     system_instruction::{create_account, transfer},
 };
-use solana_program_test::{BanksClient, BanksClientError, ProgramTestBanksClientExt};
+use solana_program_test::{BanksClient, BanksClientError};
 use solana_sdk::{
     commitment_config::CommitmentLevel,
     hash::Hash,
@@ -97,12 +97,6 @@ impl VaultProgramClient {
         }
     }
 
-    /// Returns a recent blockhash guaranteed to differ from the last one this
-    /// client handed out, so every submitted transaction has a distinct
-    /// signature. See NCNProgramClient::fresh_blockhash for the full rationale
-    /// (solana-program-test's wall-clock PohService can otherwise let two
-    /// identical transactions share a blockhash, making the second a silent
-    /// duplicate).
     /// Recent blockhash guaranteed distinct from the last one used by any
     /// client in this test (see `crate::fixtures::fresh_blockhash`).
     async fn fresh_blockhash(&mut self) -> Result<Hash, BanksClientError> {
@@ -720,8 +714,6 @@ impl VaultProgramClient {
         decimals: u8,
         initialize_token_amount: u64,
     ) -> Result<(), TestError> {
-        let blockhash = self.fresh_blockhash().await?;
-
         let admin_st_token_account =
             get_associated_token_address(&vault_admin.pubkey(), &st_mint.pubkey());
         let vault_st_token_account = get_associated_token_address(vault, &st_mint.pubkey());
@@ -742,6 +734,11 @@ impl VaultProgramClient {
             initialize_token_amount,
         )
         .await?;
+
+        // Fetched AFTER the setup transactions above so the hash is recent at
+        // signing time (a hash fetched before them sat through three
+        // submissions and could age toward queue eviction under load).
+        let blockhash = self.fresh_blockhash().await?;
 
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[initialize_vault(
@@ -1557,28 +1554,25 @@ impl VaultProgramClient {
 
     async fn _process_transaction(&mut self, tx: &Transaction) -> Result<(), TestError> {
         self.banks_client
-            .process_transaction_with_commitment(
-                tx.clone(),
-                CommitmentLevel::Processed,
-            )
+            .process_transaction_with_commitment(tx.clone(), CommitmentLevel::Processed)
             .await?;
         Ok(())
     }
 
+    /// Airdrops SOL to a specified public key.
+    //
+    // NB: uses `fresh_blockhash` directly — fetching a SECOND hash on top of it
+    // (as this once did) hands the transaction a hash the uniqueness cursor
+    // never saw, so a later fresh_blockhash call could re-issue it.
     pub async fn airdrop(&mut self, to: &Pubkey, sol: f64) -> Result<(), TestError> {
         let blockhash = self.fresh_blockhash().await?;
-        let new_blockhash = self
-            .banks_client
-            .get_new_latest_blockhash(&blockhash)
-            .await
-            .unwrap();
         self.banks_client
             .process_transaction_with_commitment(
                 Transaction::new_signed_with_payer(
                     &[transfer(&self.payer.pubkey(), to, sol_to_lamports(sol))],
                     Some(&self.payer.pubkey()),
                     &[&self.payer],
-                    new_blockhash,
+                    blockhash,
                 ),
                 CommitmentLevel::Processed,
             )

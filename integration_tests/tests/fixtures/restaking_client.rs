@@ -22,7 +22,7 @@ use solana_program::{
     instruction::InstructionError, native_token::sol_to_lamports, program_error::ProgramError,
     pubkey::Pubkey, system_instruction::transfer,
 };
-use solana_program_test::{BanksClient, BanksClientError, ProgramTestBanksClientExt};
+use solana_program_test::{BanksClient, BanksClientError};
 use solana_sdk::{
     commitment_config::CommitmentLevel,
     hash::Hash,
@@ -1131,31 +1131,11 @@ impl RestakingProgramClient {
     /// Processes a transaction using the BanksClient.
     pub async fn process_transaction(&mut self, tx: &Transaction) -> TestResult<()> {
         self.banks_client
-            .process_transaction_with_commitment(
-                tx.clone(),
-                CommitmentLevel::Processed,
-            )
+            .process_transaction_with_commitment(tx.clone(), CommitmentLevel::Processed)
             .await?;
         Ok(())
     }
 
-    /// Returns a recent blockhash guaranteed to differ from the last one this
-    /// client handed out.
-    ///
-    /// solana-program-test's wall-clock PohService registers new blockhashes on
-    /// a timer, so two transactions built close together (a fast/unloaded
-    /// moment) can share a blockhash. Two transactions that are otherwise
-    /// IDENTICAL (same instruction data, accounts, and signers) then have the
-    /// same signature, and BanksClient treats the second as a duplicate —
-    /// returning the FIRST transaction's cached result instead of executing the
-    /// second. That silently breaks any test that (a) expects a second
-    /// identical call to fail on-chain (e.g. remove-operator-twice) or
-    /// (b) re-cranks the same accounts and reads the updated state (e.g. the
-    /// vault-operator-delegation snapshot). Forcing a distinct blockhash per
-    /// submission gives every transaction a distinct signature, so each one
-    /// actually executes. The bank only ever mints brand-new unique hashes, so
-    /// "different from the immediately preceding one" is sufficient for global
-    /// uniqueness.
     /// Recent blockhash guaranteed distinct from the last one used by any
     /// client in this test (see `crate::fixtures::fresh_blockhash`).
     async fn fresh_blockhash(&mut self) -> Result<Hash, BanksClientError> {
@@ -1163,20 +1143,19 @@ impl RestakingProgramClient {
     }
 
     /// Airdrops SOL to a specified public key.
+    //
+    // NB: uses `fresh_blockhash` directly — fetching a SECOND hash on top of it
+    // (as this once did) hands the transaction a hash the uniqueness cursor
+    // never saw, so a later fresh_blockhash call could re-issue it.
     pub async fn airdrop(&mut self, to: &Pubkey, sol: f64) -> TestResult<()> {
         let blockhash = self.fresh_blockhash().await?;
-        let new_blockhash = self
-            .banks_client
-            .get_new_latest_blockhash(&blockhash)
-            .await
-            .unwrap();
         self.banks_client
             .process_transaction_with_commitment(
                 Transaction::new_signed_with_payer(
                     &[transfer(&self.payer.pubkey(), to, sol_to_lamports(sol))],
                     Some(&self.payer.pubkey()),
                     &[&self.payer],
-                    new_blockhash,
+                    blockhash,
                 ),
                 CommitmentLevel::Processed,
             )
