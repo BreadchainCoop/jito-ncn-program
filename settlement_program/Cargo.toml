@@ -1,0 +1,58 @@
+[package]
+name = "settlement-program"
+description = "gaskiller-settlement: certificate-gated single-commitment settlement consumer"
+version = { workspace = true }
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+edition = { workspace = true }
+readme = { workspace = true }
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "settlement_program"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+borsh = { workspace = true }
+jito-bytemuck = { workspace = true }
+jito-jsm-core = { workspace = true }
+jito-restaking-core = { workspace = true }
+jito-restaking-program = { workspace = true }
+ncn-program = { workspace = true, features = ["no-entrypoint"] }
+ncn-program-core = { workspace = true }
+settlement-core = { path = "../settlement_core", version = "=0.0.1" }
+solana-nostd-sha256 = { workspace = true }
+solana-program = { workspace = true }
+solana-security-txt = { workspace = true }
+
+[dev-dependencies]
+anchor-lang = { workspace = true }
+bytemuck = { workspace = true }
+jito-vault-core = { workspace = true }
+jito-vault-program = { workspace = true }
+jito-restaking-sdk = { workspace = true }
+jito-vault-sdk = { workspace = true }
+log = { workspace = true }
+ncn-program-client = { workspace = true }
+rand = { workspace = true }
+shank = { workspace = true }
+solana-program-test = { workspace = true }
+solana-sdk = { workspace = true }
+spl-associated-token-account = { workspace = true }
+spl-token = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = [
+  'cfg(target_os, values("solana"))',
+  'cfg(feature, values("frozen-abi", "no-entrypoint", "custom-heap", "custom-panic"))',
+] }

@@ -56,19 +56,23 @@ jobs:
           -p ncn-program-client
           -p ncn-program-shank-cli
           -p ncn-program-integration-tests
+          -p settlement-core
+          -p settlement-program
           -- --style-edition 2021
 
       # On-chain crates get the CU-safety wall (panics on-chain = program
       # aborts); off-chain tooling is gated on -D warnings only.
       - name: cargo clippy (on-chain, strict)
         run: >
-          cargo clippy -p ncn-program-core -p ncn-program --all-targets
+          cargo clippy -p ncn-program-core -p ncn-program
+          -p settlement-core -p settlement-program --all-targets
           -- -D warnings -D clippy::arithmetic_side_effects -D clippy::integer_division
 
       - name: cargo clippy (off-chain)
         run: >
           cargo clippy --workspace --exclude ncn-program-bls-router
-          --exclude ncn-program-core --exclude ncn-program --all-targets
+          --exclude ncn-program-core --exclude ncn-program
+          --exclude settlement-core --exclude settlement-program --all-targets
           -- -D warnings
 
   test:
@@ -106,6 +110,9 @@ jobs:
       - name: Build NCN program (SBF)
         run: cargo build-sbf --manifest-path program/Cargo.toml --sbf-out-dir integration_tests/tests/fixtures
 
+      - name: Build settlement program (SBF)
+        run: cargo build-sbf --manifest-path settlement_program/Cargo.toml --sbf-out-dir integration_tests/tests/fixtures
+
       - name: Install cargo-nextest
         uses: taiki-e/install-action@v2
         with:
@@ -113,3 +120,6 @@ jobs:
 
       - name: Run integration tests
         run: SBF_OUT_DIR=integration_tests/tests/fixtures cargo nextest run -p ncn-program-integration-tests
+
+      - name: Run settlement tests
+        run: SBF_OUT_DIR="$PWD/integration_tests/tests/fixtures" cargo nextest run -p settlement-core -p settlement-program

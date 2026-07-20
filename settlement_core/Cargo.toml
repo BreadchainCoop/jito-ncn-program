@@ -1,0 +1,23 @@
+[package]
+name = "settlement-core"
+description = "gaskiller-settlement shared types (borsh payloads, digests, PDAs) — host + sbf"
+version = { workspace = true }
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+edition = { workspace = true }
+readme = { workspace = true }
+
+[dependencies]
+borsh = { workspace = true }
+bytemuck = { workspace = true }
+jito-bytemuck = { workspace = true }
+ncn-program-core = { workspace = true }
+shank = { workspace = true }
+solana-nostd-sha256 = { workspace = true }
+solana-program = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+hex = { workspace = true }

@@ -6,6 +6,8 @@ members = [
   "integration_tests",
   "llm_payload_producer",
   "program",
+  "settlement_core",
+  "settlement_program",
   "shank_cli",
   "commonware-avs-router-solana",
 ]
