@@ -3,3 +3,12 @@
 test-threads = "num-cpus"
 threads-required = 1
 fail-fast = false
+# solana-program-test spawns process-global background threads (rayon pools,
+# AccountsBackgroundService) and an exit-flagless PohService loop that wind down
+# a beat after the test function returns. They are not joinable from test code,
+# so nextest's default 100ms leak grace period intermittently flags an otherwise
+# passing test as "leaky". Give the framework's async teardown room to finish.
+# This is a cleanliness grace period only — not a retry, thread cap, or ignore.
+# (Non-leaky tests hit EOF immediately and never wait; only a would-be-leaky
+# test's teardown is granted this window.)
+leak-timeout = "3s"

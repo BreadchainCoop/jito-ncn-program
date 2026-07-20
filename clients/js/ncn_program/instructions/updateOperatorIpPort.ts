@@ -34,7 +34,7 @@ import {
 import { NCN_PROGRAM_PROGRAM_ADDRESS } from '../programs';
 import { getAccountMetaFactory, type ResolvedAccount } from '../shared';
 
-export const UPDATE_OPERATOR_IP_PORT_DISCRIMINATOR = 5;
+export const UPDATE_OPERATOR_IP_PORT_DISCRIMINATOR = 6;
 
 export function getUpdateOperatorIpPortDiscriminatorBytes() {
   return getU8Encoder().encode(UPDATE_OPERATOR_IP_PORT_DISCRIMINATOR);

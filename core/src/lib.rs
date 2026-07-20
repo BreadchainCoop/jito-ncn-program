@@ -1,6 +1,7 @@
 #![allow(unexpected_cfgs)]
 
 pub mod account_payer;
+pub mod certificate;
 pub mod config;
 pub mod constants;
 pub mod discriminators;
@@ -17,4 +18,3 @@ pub mod snapshot;
 pub mod stake_weight;
 pub mod utils;
 pub mod vault_registry;
-pub mod vote_counter;

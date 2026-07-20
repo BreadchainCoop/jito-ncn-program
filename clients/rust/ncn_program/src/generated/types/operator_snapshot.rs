@@ -6,6 +6,7 @@
 //!
 
 use crate::generated::types::StakeWeights;
+use crate::generated::types::VaultContribution;
 use borsh::BorshDeserialize;
 use borsh::BorshSerialize;
 use solana_program::pubkey::Pubkey;
@@ -28,4 +29,5 @@ pub struct OperatorSnapshot {
     pub has_minimum_stake_next_epoch: bool,
     pub stake_weight: StakeWeights,
     pub next_epoch_stake_weight: StakeWeights,
+    pub vault_contributions: [VaultContribution; 16],
 }

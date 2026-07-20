@@ -9,10 +9,10 @@ use jito_vault_core::{
 use ncn_program_client::{
     instructions::{
         AdminRegisterStMintBuilder, AdminSetNewAdminBuilder, AdminSetParametersBuilder,
-        CastVoteBuilder, InitializeConfigBuilder, InitializeSnapshotBuilder,
-        InitializeVaultRegistryBuilder, InitializeVoteCounterBuilder, ReallocSnapshotBuilder,
-        RegisterOperatorBuilder, RegisterVaultBuilder, SnapshotVaultOperatorDelegationBuilder,
-        UpdateOperatorBN128KeysBuilder, UpdateOperatorIpPortBuilder,
+        InitializeConfigBuilder, InitializeSnapshotBuilder, InitializeVaultRegistryBuilder,
+        ReallocSnapshotBuilder, RegisterOperatorBuilder, RegisterVaultBuilder,
+        RemoveOperatorBuilder, SnapshotVaultOperatorDelegationBuilder,
+        UpdateOperatorBN128KeysBuilder, UpdateOperatorIpPortBuilder, VerifyCertificateBuilder,
     },
     types::ConfigAdminRole,
 };
@@ -24,16 +24,16 @@ use ncn_program_core::{
     fees::FeeConfig,
     ncn_operator_account::NCNOperatorAccount,
     snapshot::{OperatorSnapshot, Snapshot},
-    vault_registry::VaultRegistry,
-    vote_counter::VoteCounter,
+    vault_registry::{VaultRegistry, FULL_WEIGHT_BPS},
 };
 use solana_program::{
     instruction::InstructionError, native_token::sol_to_lamports, pubkey::Pubkey,
     system_instruction::transfer,
 };
-use solana_program_test::{BanksClient, ProgramTestBanksClientExt};
+use solana_program_test::{BanksClient, BanksClientError, ProgramTestBanksClientExt};
 use solana_sdk::{
     commitment_config::CommitmentLevel,
+    hash::Hash,
     compute_budget::ComputeBudgetInstruction,
     signature::{Keypair, Signer},
     system_program,
@@ -60,9 +60,21 @@ impl NCNProgramClient {
     }
 
     /// Processes a transaction using the BanksClient with processed commitment level.
+    //
+    // NB: intentionally NOT the `_with_preflight_` variant. solana-program-test
+    // runs a wall-clock PohService that registers a fresh blockhash every
+    // ~100us*ticks_per_slot, so the 300-entry recent-blockhash queue turns over
+    // in ~2s of wall-clock time. The preflight path simulates the (BN254-heavy)
+    // transaction BEFORE validating its blockhash; under nextest parallelism the
+    // simulation can be starved long enough that the blockhash is evicted before
+    // validation, surfacing as a nondeterministic
+    // ClientError("invalid blockhash or fee-payer"). The non-preflight path
+    // validates the blockhash promptly (the slow execution happens afterward on
+    // a separate channel), which removes the race. Execution errors still return
+    // TransactionError, so assert_ncn_program_error keeps working.
     pub async fn process_transaction(&mut self, tx: &Transaction) -> TestResult<()> {
         self.banks_client
-            .process_transaction_with_preflight_and_commitment(
+            .process_transaction_with_commitment(
                 tx.clone(),
                 CommitmentLevel::Processed,
             )
@@ -70,16 +82,39 @@ impl NCNProgramClient {
         Ok(())
     }
 
+    /// Returns a recent blockhash guaranteed to differ from the last one this
+    /// client handed out.
+    ///
+    /// solana-program-test's wall-clock PohService registers new blockhashes on
+    /// a timer, so two transactions built close together (a fast/unloaded
+    /// moment) can share a blockhash. Two transactions that are otherwise
+    /// IDENTICAL (same instruction data, accounts, and signers) then have the
+    /// same signature, and BanksClient treats the second as a duplicate —
+    /// returning the FIRST transaction's cached result instead of executing the
+    /// second. That silently breaks any test that (a) expects a second
+    /// identical call to fail on-chain (e.g. remove-operator-twice) or
+    /// (b) re-cranks the same accounts and reads the updated state (e.g. the
+    /// vault-operator-delegation snapshot). Forcing a distinct blockhash per
+    /// submission gives every transaction a distinct signature, so each one
+    /// actually executes. The bank only ever mints brand-new unique hashes, so
+    /// "different from the immediately preceding one" is sufficient for global
+    /// uniqueness.
+    /// Recent blockhash guaranteed distinct from the last one used by any
+    /// client in this test (see `crate::fixtures::fresh_blockhash`).
+    async fn fresh_blockhash(&mut self) -> Result<Hash, BanksClientError> {
+        crate::fixtures::fresh_blockhash(&mut self.banks_client).await
+    }
+
     /// Airdrops SOL to a specified public key.
     pub async fn airdrop(&mut self, to: &Pubkey, sol: f64) -> TestResult<()> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         let new_blockhash = self
             .banks_client
             .get_new_latest_blockhash(&blockhash)
             .await
             .unwrap();
         self.banks_client
-            .process_transaction_with_preflight_and_commitment(
+            .process_transaction_with_commitment(
                 Transaction::new_signed_with_payer(
                     &[transfer(&self.payer.pubkey(), to, sol_to_lamports(sol))],
                     Some(&self.payer.pubkey()),
@@ -97,48 +132,10 @@ impl NCNProgramClient {
         self.do_initialize_config(ncn_root.ncn_pubkey, &ncn_root.ncn_admin, None)
             .await?;
 
-        self.do_initialize_vote_counter(ncn_root.ncn_pubkey).await?;
-
         self.do_full_initialize_vault_registry(ncn_root.ncn_pubkey)
             .await?;
 
         Ok(())
-    }
-
-    /// Initializes the vote counter account for a given NCN.
-    pub async fn do_initialize_vote_counter(&mut self, ncn: Pubkey) -> TestResult<()> {
-        let config = NcnConfig::find_program_address(&ncn_program::id(), &ncn).0;
-        let (vote_counter, _, _) = VoteCounter::find_program_address(&ncn_program::id(), &ncn);
-        let (account_payer, _, _) = AccountPayer::find_program_address(&ncn_program::id(), &ncn);
-
-        self.initialize_vote_counter(config, vote_counter, ncn, account_payer)
-            .await
-    }
-
-    /// Sends a transaction to initialize the vote counter account.
-    pub async fn initialize_vote_counter(
-        &mut self,
-        config: Pubkey,
-        vote_counter: Pubkey,
-        ncn: Pubkey,
-        account_payer: Pubkey,
-    ) -> TestResult<()> {
-        let ix = InitializeVoteCounterBuilder::new()
-            .config(config)
-            .vote_counter(vote_counter)
-            .ncn(ncn)
-            .account_payer(account_payer)
-            .system_program(system_program::id())
-            .instruction();
-
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
-        self.process_transaction(&Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&self.payer.pubkey()),
-            &[&self.payer],
-            blockhash,
-        ))
-        .await
     }
 
     /// Fetches the NCN Config account for a given NCN pubkey.
@@ -146,17 +143,6 @@ impl NCNProgramClient {
         let config_pda = NcnConfig::find_program_address(&ncn_program::id(), &ncn_pubkey).0;
         let config = self.banks_client.get_account(config_pda).await?.unwrap();
         Ok(*NcnConfig::try_from_slice_unchecked(config.data.as_slice()).unwrap())
-    }
-
-    /// Fetches the VoteCounter account for a given NCN pubkey.
-    pub async fn get_vote_counter(&mut self, ncn_pubkey: Pubkey) -> TestResult<VoteCounter> {
-        let vote_counter_pda = VoteCounter::find_program_address(&ncn_program::id(), &ncn_pubkey).0;
-        let vote_counter = self
-            .banks_client
-            .get_account(vote_counter_pda)
-            .await?
-            .unwrap();
-        Ok(*VoteCounter::try_from_slice_unchecked(vote_counter.data.as_slice()).unwrap())
     }
 
     /// Fetches the VaultRegistry account for a given NCN pubkey.
@@ -289,7 +275,7 @@ impl NCNProgramClient {
             .ncn_fee_bps(ncn_fee_bps)
             .instruction();
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[ix],
             Some(&ncn_admin.pubkey()),
@@ -329,7 +315,7 @@ impl NCNProgramClient {
             .role(role)
             .instruction();
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[ix],
             Some(&ncn_root.ncn_admin.pubkey()),
@@ -371,7 +357,7 @@ impl NCNProgramClient {
             .system_program(system_program::id())
             .instruction();
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[ix],
             Some(&self.payer.pubkey()),
@@ -413,7 +399,7 @@ impl NCNProgramClient {
             .ncn_vault_ticket(ncn_vault_ticket)
             .instruction();
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[ix],
             Some(&self.payer.pubkey()),
@@ -429,13 +415,24 @@ impl NCNProgramClient {
         ncn: Pubkey,
         st_mint: Pubkey,
     ) -> TestResult<()> {
+        self.do_admin_register_st_mint_with_weight(ncn, st_mint, FULL_WEIGHT_BPS)
+            .await
+    }
+
+    /// Registers an st_mint with an explicit delegation weight (bps).
+    pub async fn do_admin_register_st_mint_with_weight(
+        &mut self,
+        ncn: Pubkey,
+        st_mint: Pubkey,
+        weight_bps: u16,
+    ) -> TestResult<()> {
         let vault_registry = VaultRegistry::find_program_address(&ncn_program::id(), &ncn).0;
 
         let (ncn_config, _, _) = NcnConfig::find_program_address(&ncn_program::id(), &ncn);
 
         let admin = self.payer.pubkey();
 
-        self.admin_register_st_mint(ncn, ncn_config, vault_registry, admin, st_mint)
+        self.admin_register_st_mint(ncn, ncn_config, vault_registry, admin, st_mint, weight_bps)
             .await
     }
 
@@ -448,6 +445,7 @@ impl NCNProgramClient {
         vault_registry: Pubkey,
         admin: Pubkey,
         st_mint: Pubkey,
+        weight_bps: u16,
     ) -> TestResult<()> {
         let ix = {
             let mut builder = AdminRegisterStMintBuilder::new();
@@ -456,12 +454,13 @@ impl NCNProgramClient {
                 .ncn(ncn)
                 .vault_registry(vault_registry)
                 .admin(admin)
-                .st_mint(st_mint);
+                .st_mint(st_mint)
+                .weight_bps(weight_bps);
 
             builder.instruction()
         };
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[ix],
             Some(&self.payer.pubkey()),
@@ -489,7 +488,7 @@ impl NCNProgramClient {
             .system_program(system_program::id())
             .instruction();
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[ix],
             Some(&self.payer.pubkey()),
@@ -541,7 +540,7 @@ impl NCNProgramClient {
 
         let ixs = vec![ix; num_reallocations as usize];
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &ixs,
             Some(&self.payer.pubkey()),
@@ -592,6 +591,8 @@ impl NCNProgramClient {
             NcnOperatorState::find_program_address(&jito_restaking_program::id(), &ncn, &operator)
                 .0;
 
+        let vault_registry = VaultRegistry::find_program_address(&ncn_program::id(), &ncn).0;
+
         let ix = SnapshotVaultOperatorDelegationBuilder::new()
             .config(config_pda)
             .restaking_config(restaking_config)
@@ -603,9 +604,10 @@ impl NCNProgramClient {
             .vault_operator_delegation(vault_operator_delegation)
             .ncn_operator_state(ncn_operator_state)
             .snapshot(snapshot)
+            .vault_registry(vault_registry)
             .instruction();
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[ix],
             Some(&self.payer.pubkey()),
@@ -615,59 +617,63 @@ impl NCNProgramClient {
         .await
     }
 
-    /// Casts a vote using BLS signature aggregation for a given epoch.
-    pub async fn do_cast_vote(
+    /// Verifies a BLS certificate over `digest` (stateless; mutates nothing).
+    pub async fn do_verify_certificate(
         &mut self,
         ncn: Pubkey,
+        digest: [u8; 32],
         agg_sig: [u8; 32],
         apk2: [u8; 64],
         signers_bitmap: Vec<u8>,
+        expected_generation: u64,
     ) -> Result<(), TestError> {
         let ncn_config = NcnConfig::find_program_address(&ncn_program::id(), &ncn).0;
         let snapshot = Snapshot::find_program_address(&ncn_program::id(), &ncn).0;
         let restaking_config = Config::find_program_address(&jito_restaking_program::id()).0;
-        let vote_counter = VoteCounter::find_program_address(&ncn_program::id(), &ncn).0;
 
-        self.cast_vote(
+        self.verify_certificate(
             ncn_config,
             ncn,
             snapshot,
             restaking_config,
-            vote_counter,
+            digest,
             agg_sig,
             apk2,
             signers_bitmap,
+            expected_generation,
         )
         .await
     }
 
-    /// Sends a transaction to cast a vote using BLS signature verification.
+    /// Sends a VerifyCertificate transaction (stateless BLS certificate check).
     #[allow(clippy::too_many_arguments)]
-    pub async fn cast_vote(
+    pub async fn verify_certificate(
         &mut self,
         ncn_config: Pubkey,
         ncn: Pubkey,
         snapshot: Pubkey,
         restaking_config: Pubkey,
-        vote_counter: Pubkey,
+        digest: [u8; 32],
         agg_sig: [u8; 32],
         apk2: [u8; 64],
         signers_bitmap: Vec<u8>,
+        expected_generation: u64,
     ) -> Result<(), TestError> {
         let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(2_000_000);
 
-        let ix = CastVoteBuilder::new()
-            .config(ncn_config)
+        let ix = VerifyCertificateBuilder::new()
+            .ncn_config(ncn_config)
             .ncn(ncn)
             .snapshot(snapshot)
             .restaking_config(restaking_config)
-            .vote_counter(vote_counter)
-            .aggregated_signature(agg_sig)
+            .digest(digest)
             .aggregated_g2(apk2)
+            .aggregated_signature(agg_sig)
             .operators_signature_bitmap(signers_bitmap)
+            .expected_generation(expected_generation)
             .instruction();
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[compute_budget_ix, ix],
             Some(&self.payer.pubkey()),
@@ -678,6 +684,7 @@ impl NCNProgramClient {
     }
 
     /// Sets various parameters in the NCN config (admin operation).
+    #[allow(clippy::too_many_arguments)]
     pub async fn do_set_parameters(
         &mut self,
         starting_valid_epoch: Option<u64>,
@@ -685,6 +692,7 @@ impl NCNProgramClient {
         epochs_after_consensus_before_close: Option<u64>,
         valid_slots_after_consensus: Option<u64>,
         minimum_stake: Option<u128>,
+        consensus_threshold_bps: Option<u16>,
         ncn_root: &NcnRoot,
     ) -> TestResult<()> {
         let config_pda =
@@ -715,7 +723,11 @@ impl NCNProgramClient {
             ix.minimum_stake(minimum_stake);
         }
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        if let Some(threshold_bps) = consensus_threshold_bps {
+            ix.consensus_threshold_bps(threshold_bps);
+        }
+
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[ix.instruction()],
             Some(&ncn_root.ncn_admin.pubkey()),
@@ -799,11 +811,40 @@ impl NCNProgramClient {
 
         let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_000_000);
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[ix, compute_budget_ix],
             Some(&self.payer.pubkey()),
             &[&self.payer, operator_admin],
+            blockhash,
+        ))
+        .await
+    }
+
+    /// Removes an operator from the snapshot (tombstone + APK subtract +
+    /// generation bump), signed by the given admin (NCN or operator admin).
+    pub async fn do_remove_operator(
+        &mut self,
+        ncn: Pubkey,
+        operator_pubkey: Pubkey,
+        admin: &Keypair,
+    ) -> TestResult<()> {
+        let config = NcnConfig::find_program_address(&ncn_program::id(), &ncn).0;
+        let snapshot = Snapshot::find_program_address(&ncn_program::id(), &ncn).0;
+
+        let ix = RemoveOperatorBuilder::new()
+            .config(config)
+            .ncn(ncn)
+            .operator(operator_pubkey)
+            .admin(admin.pubkey())
+            .snapshot(snapshot)
+            .instruction();
+
+        let blockhash = self.fresh_blockhash().await?;
+        self.process_transaction(&Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&self.payer.pubkey()),
+            &[&self.payer, admin],
             blockhash,
         ))
         .await
@@ -866,7 +907,7 @@ impl NCNProgramClient {
 
         let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_000_000);
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[ix, compute_budget_ix],
             Some(&self.payer.pubkey()),
@@ -925,7 +966,7 @@ impl NCNProgramClient {
 
         let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(1_000_000);
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.process_transaction(&Transaction::new_signed_with_payer(
             &[ix, compute_budget_ix],
             Some(&self.payer.pubkey()),

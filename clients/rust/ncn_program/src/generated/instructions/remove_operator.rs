@@ -9,19 +9,19 @@ use borsh::BorshDeserialize;
 use borsh::BorshSerialize;
 
 /// Accounts.
-pub struct InitializeVoteCounter {
+pub struct RemoveOperator {
     pub config: solana_program::pubkey::Pubkey,
-
-    pub vote_counter: solana_program::pubkey::Pubkey,
 
     pub ncn: solana_program::pubkey::Pubkey,
 
-    pub account_payer: solana_program::pubkey::Pubkey,
+    pub operator: solana_program::pubkey::Pubkey,
 
-    pub system_program: solana_program::pubkey::Pubkey,
+    pub admin: solana_program::pubkey::Pubkey,
+
+    pub snapshot: solana_program::pubkey::Pubkey,
 }
 
-impl InitializeVoteCounter {
+impl RemoveOperator {
     pub fn instruction(&self) -> solana_program::instruction::Instruction {
         self.instruction_with_remaining_accounts(&[])
     }
@@ -35,25 +35,22 @@ impl InitializeVoteCounter {
             self.config,
             false,
         ));
-        accounts.push(solana_program::instruction::AccountMeta::new(
-            self.vote_counter,
-            false,
-        ));
         accounts.push(solana_program::instruction::AccountMeta::new_readonly(
             self.ncn, false,
         ));
-        accounts.push(solana_program::instruction::AccountMeta::new(
-            self.account_payer,
+        accounts.push(solana_program::instruction::AccountMeta::new_readonly(
+            self.operator,
             false,
         ));
         accounts.push(solana_program::instruction::AccountMeta::new_readonly(
-            self.system_program,
+            self.admin, true,
+        ));
+        accounts.push(solana_program::instruction::AccountMeta::new(
+            self.snapshot,
             false,
         ));
         accounts.extend_from_slice(remaining_accounts);
-        let data = InitializeVoteCounterInstructionData::new()
-            .try_to_vec()
-            .unwrap();
+        let data = RemoveOperatorInstructionData::new().try_to_vec().unwrap();
 
         solana_program::instruction::Instruction {
             program_id: crate::NCN_PROGRAM_ID,
@@ -64,42 +61,42 @@ impl InitializeVoteCounter {
 }
 
 #[derive(BorshDeserialize, BorshSerialize)]
-pub struct InitializeVoteCounterInstructionData {
+pub struct RemoveOperatorInstructionData {
     discriminator: u8,
 }
 
-impl InitializeVoteCounterInstructionData {
+impl RemoveOperatorInstructionData {
     pub fn new() -> Self {
-        Self { discriminator: 6 }
+        Self { discriminator: 5 }
     }
 }
 
-impl Default for InitializeVoteCounterInstructionData {
+impl Default for RemoveOperatorInstructionData {
     fn default() -> Self {
         Self::new()
     }
 }
 
-/// Instruction builder for `InitializeVoteCounter`.
+/// Instruction builder for `RemoveOperator`.
 ///
 /// ### Accounts:
 ///
 ///   0. `[]` config
-///   1. `[writable]` vote_counter
-///   2. `[]` ncn
-///   3. `[writable]` account_payer
-///   4. `[optional]` system_program (default to `11111111111111111111111111111111`)
+///   1. `[]` ncn
+///   2. `[]` operator
+///   3. `[signer]` admin
+///   4. `[writable]` snapshot
 #[derive(Clone, Debug, Default)]
-pub struct InitializeVoteCounterBuilder {
+pub struct RemoveOperatorBuilder {
     config: Option<solana_program::pubkey::Pubkey>,
-    vote_counter: Option<solana_program::pubkey::Pubkey>,
     ncn: Option<solana_program::pubkey::Pubkey>,
-    account_payer: Option<solana_program::pubkey::Pubkey>,
-    system_program: Option<solana_program::pubkey::Pubkey>,
+    operator: Option<solana_program::pubkey::Pubkey>,
+    admin: Option<solana_program::pubkey::Pubkey>,
+    snapshot: Option<solana_program::pubkey::Pubkey>,
     __remaining_accounts: Vec<solana_program::instruction::AccountMeta>,
 }
 
-impl InitializeVoteCounterBuilder {
+impl RemoveOperatorBuilder {
     pub fn new() -> Self {
         Self::default()
     }
@@ -109,24 +106,23 @@ impl InitializeVoteCounterBuilder {
         self
     }
     #[inline(always)]
-    pub fn vote_counter(&mut self, vote_counter: solana_program::pubkey::Pubkey) -> &mut Self {
-        self.vote_counter = Some(vote_counter);
-        self
-    }
-    #[inline(always)]
     pub fn ncn(&mut self, ncn: solana_program::pubkey::Pubkey) -> &mut Self {
         self.ncn = Some(ncn);
         self
     }
     #[inline(always)]
-    pub fn account_payer(&mut self, account_payer: solana_program::pubkey::Pubkey) -> &mut Self {
-        self.account_payer = Some(account_payer);
+    pub fn operator(&mut self, operator: solana_program::pubkey::Pubkey) -> &mut Self {
+        self.operator = Some(operator);
         self
     }
-    /// `[optional account, default to '11111111111111111111111111111111']`
     #[inline(always)]
-    pub fn system_program(&mut self, system_program: solana_program::pubkey::Pubkey) -> &mut Self {
-        self.system_program = Some(system_program);
+    pub fn admin(&mut self, admin: solana_program::pubkey::Pubkey) -> &mut Self {
+        self.admin = Some(admin);
+        self
+    }
+    #[inline(always)]
+    pub fn snapshot(&mut self, snapshot: solana_program::pubkey::Pubkey) -> &mut Self {
+        self.snapshot = Some(snapshot);
         self
     }
     /// Add an additional account to the instruction.
@@ -149,61 +145,59 @@ impl InitializeVoteCounterBuilder {
     }
     #[allow(clippy::clone_on_copy)]
     pub fn instruction(&self) -> solana_program::instruction::Instruction {
-        let accounts = InitializeVoteCounter {
+        let accounts = RemoveOperator {
             config: self.config.expect("config is not set"),
-            vote_counter: self.vote_counter.expect("vote_counter is not set"),
             ncn: self.ncn.expect("ncn is not set"),
-            account_payer: self.account_payer.expect("account_payer is not set"),
-            system_program: self
-                .system_program
-                .unwrap_or(solana_program::pubkey!("11111111111111111111111111111111")),
+            operator: self.operator.expect("operator is not set"),
+            admin: self.admin.expect("admin is not set"),
+            snapshot: self.snapshot.expect("snapshot is not set"),
         };
 
         accounts.instruction_with_remaining_accounts(&self.__remaining_accounts)
     }
 }
 
-/// `initialize_vote_counter` CPI accounts.
-pub struct InitializeVoteCounterCpiAccounts<'a, 'b> {
+/// `remove_operator` CPI accounts.
+pub struct RemoveOperatorCpiAccounts<'a, 'b> {
     pub config: &'b solana_program::account_info::AccountInfo<'a>,
-
-    pub vote_counter: &'b solana_program::account_info::AccountInfo<'a>,
 
     pub ncn: &'b solana_program::account_info::AccountInfo<'a>,
 
-    pub account_payer: &'b solana_program::account_info::AccountInfo<'a>,
+    pub operator: &'b solana_program::account_info::AccountInfo<'a>,
 
-    pub system_program: &'b solana_program::account_info::AccountInfo<'a>,
+    pub admin: &'b solana_program::account_info::AccountInfo<'a>,
+
+    pub snapshot: &'b solana_program::account_info::AccountInfo<'a>,
 }
 
-/// `initialize_vote_counter` CPI instruction.
-pub struct InitializeVoteCounterCpi<'a, 'b> {
+/// `remove_operator` CPI instruction.
+pub struct RemoveOperatorCpi<'a, 'b> {
     /// The program to invoke.
     pub __program: &'b solana_program::account_info::AccountInfo<'a>,
 
     pub config: &'b solana_program::account_info::AccountInfo<'a>,
 
-    pub vote_counter: &'b solana_program::account_info::AccountInfo<'a>,
-
     pub ncn: &'b solana_program::account_info::AccountInfo<'a>,
 
-    pub account_payer: &'b solana_program::account_info::AccountInfo<'a>,
+    pub operator: &'b solana_program::account_info::AccountInfo<'a>,
 
-    pub system_program: &'b solana_program::account_info::AccountInfo<'a>,
+    pub admin: &'b solana_program::account_info::AccountInfo<'a>,
+
+    pub snapshot: &'b solana_program::account_info::AccountInfo<'a>,
 }
 
-impl<'a, 'b> InitializeVoteCounterCpi<'a, 'b> {
+impl<'a, 'b> RemoveOperatorCpi<'a, 'b> {
     pub fn new(
         program: &'b solana_program::account_info::AccountInfo<'a>,
-        accounts: InitializeVoteCounterCpiAccounts<'a, 'b>,
+        accounts: RemoveOperatorCpiAccounts<'a, 'b>,
     ) -> Self {
         Self {
             __program: program,
             config: accounts.config,
-            vote_counter: accounts.vote_counter,
             ncn: accounts.ncn,
-            account_payer: accounts.account_payer,
-            system_program: accounts.system_program,
+            operator: accounts.operator,
+            admin: accounts.admin,
+            snapshot: accounts.snapshot,
         }
     }
     #[inline(always)]
@@ -244,20 +238,20 @@ impl<'a, 'b> InitializeVoteCounterCpi<'a, 'b> {
             *self.config.key,
             false,
         ));
-        accounts.push(solana_program::instruction::AccountMeta::new(
-            *self.vote_counter.key,
-            false,
-        ));
         accounts.push(solana_program::instruction::AccountMeta::new_readonly(
             *self.ncn.key,
             false,
         ));
-        accounts.push(solana_program::instruction::AccountMeta::new(
-            *self.account_payer.key,
+        accounts.push(solana_program::instruction::AccountMeta::new_readonly(
+            *self.operator.key,
             false,
         ));
         accounts.push(solana_program::instruction::AccountMeta::new_readonly(
-            *self.system_program.key,
+            *self.admin.key,
+            true,
+        ));
+        accounts.push(solana_program::instruction::AccountMeta::new(
+            *self.snapshot.key,
             false,
         ));
         remaining_accounts.iter().for_each(|remaining_account| {
@@ -267,9 +261,7 @@ impl<'a, 'b> InitializeVoteCounterCpi<'a, 'b> {
                 is_writable: remaining_account.2,
             })
         });
-        let data = InitializeVoteCounterInstructionData::new()
-            .try_to_vec()
-            .unwrap();
+        let data = RemoveOperatorInstructionData::new().try_to_vec().unwrap();
 
         let instruction = solana_program::instruction::Instruction {
             program_id: crate::NCN_PROGRAM_ID,
@@ -279,10 +271,10 @@ impl<'a, 'b> InitializeVoteCounterCpi<'a, 'b> {
         let mut account_infos = Vec::with_capacity(5 + 1 + remaining_accounts.len());
         account_infos.push(self.__program.clone());
         account_infos.push(self.config.clone());
-        account_infos.push(self.vote_counter.clone());
         account_infos.push(self.ncn.clone());
-        account_infos.push(self.account_payer.clone());
-        account_infos.push(self.system_program.clone());
+        account_infos.push(self.operator.clone());
+        account_infos.push(self.admin.clone());
+        account_infos.push(self.snapshot.clone());
         remaining_accounts
             .iter()
             .for_each(|remaining_account| account_infos.push(remaining_account.0.clone()));
@@ -295,29 +287,29 @@ impl<'a, 'b> InitializeVoteCounterCpi<'a, 'b> {
     }
 }
 
-/// Instruction builder for `InitializeVoteCounter` via CPI.
+/// Instruction builder for `RemoveOperator` via CPI.
 ///
 /// ### Accounts:
 ///
 ///   0. `[]` config
-///   1. `[writable]` vote_counter
-///   2. `[]` ncn
-///   3. `[writable]` account_payer
-///   4. `[]` system_program
+///   1. `[]` ncn
+///   2. `[]` operator
+///   3. `[signer]` admin
+///   4. `[writable]` snapshot
 #[derive(Clone, Debug)]
-pub struct InitializeVoteCounterCpiBuilder<'a, 'b> {
-    instruction: Box<InitializeVoteCounterCpiBuilderInstruction<'a, 'b>>,
+pub struct RemoveOperatorCpiBuilder<'a, 'b> {
+    instruction: Box<RemoveOperatorCpiBuilderInstruction<'a, 'b>>,
 }
 
-impl<'a, 'b> InitializeVoteCounterCpiBuilder<'a, 'b> {
+impl<'a, 'b> RemoveOperatorCpiBuilder<'a, 'b> {
     pub fn new(program: &'b solana_program::account_info::AccountInfo<'a>) -> Self {
-        let instruction = Box::new(InitializeVoteCounterCpiBuilderInstruction {
+        let instruction = Box::new(RemoveOperatorCpiBuilderInstruction {
             __program: program,
             config: None,
-            vote_counter: None,
             ncn: None,
-            account_payer: None,
-            system_program: None,
+            operator: None,
+            admin: None,
+            snapshot: None,
             __remaining_accounts: Vec::new(),
         });
         Self { instruction }
@@ -331,32 +323,29 @@ impl<'a, 'b> InitializeVoteCounterCpiBuilder<'a, 'b> {
         self
     }
     #[inline(always)]
-    pub fn vote_counter(
-        &mut self,
-        vote_counter: &'b solana_program::account_info::AccountInfo<'a>,
-    ) -> &mut Self {
-        self.instruction.vote_counter = Some(vote_counter);
-        self
-    }
-    #[inline(always)]
     pub fn ncn(&mut self, ncn: &'b solana_program::account_info::AccountInfo<'a>) -> &mut Self {
         self.instruction.ncn = Some(ncn);
         self
     }
     #[inline(always)]
-    pub fn account_payer(
+    pub fn operator(
         &mut self,
-        account_payer: &'b solana_program::account_info::AccountInfo<'a>,
+        operator: &'b solana_program::account_info::AccountInfo<'a>,
     ) -> &mut Self {
-        self.instruction.account_payer = Some(account_payer);
+        self.instruction.operator = Some(operator);
         self
     }
     #[inline(always)]
-    pub fn system_program(
+    pub fn admin(&mut self, admin: &'b solana_program::account_info::AccountInfo<'a>) -> &mut Self {
+        self.instruction.admin = Some(admin);
+        self
+    }
+    #[inline(always)]
+    pub fn snapshot(
         &mut self,
-        system_program: &'b solana_program::account_info::AccountInfo<'a>,
+        snapshot: &'b solana_program::account_info::AccountInfo<'a>,
     ) -> &mut Self {
-        self.instruction.system_program = Some(system_program);
+        self.instruction.snapshot = Some(snapshot);
         self
     }
     /// Add an additional account to the instruction.
@@ -400,27 +389,18 @@ impl<'a, 'b> InitializeVoteCounterCpiBuilder<'a, 'b> {
         &self,
         signers_seeds: &[&[&[u8]]],
     ) -> solana_program::entrypoint::ProgramResult {
-        let instruction = InitializeVoteCounterCpi {
+        let instruction = RemoveOperatorCpi {
             __program: self.instruction.__program,
 
             config: self.instruction.config.expect("config is not set"),
 
-            vote_counter: self
-                .instruction
-                .vote_counter
-                .expect("vote_counter is not set"),
-
             ncn: self.instruction.ncn.expect("ncn is not set"),
 
-            account_payer: self
-                .instruction
-                .account_payer
-                .expect("account_payer is not set"),
+            operator: self.instruction.operator.expect("operator is not set"),
 
-            system_program: self
-                .instruction
-                .system_program
-                .expect("system_program is not set"),
+            admin: self.instruction.admin.expect("admin is not set"),
+
+            snapshot: self.instruction.snapshot.expect("snapshot is not set"),
         };
         instruction.invoke_signed_with_remaining_accounts(
             signers_seeds,
@@ -430,13 +410,13 @@ impl<'a, 'b> InitializeVoteCounterCpiBuilder<'a, 'b> {
 }
 
 #[derive(Clone, Debug)]
-struct InitializeVoteCounterCpiBuilderInstruction<'a, 'b> {
+struct RemoveOperatorCpiBuilderInstruction<'a, 'b> {
     __program: &'b solana_program::account_info::AccountInfo<'a>,
     config: Option<&'b solana_program::account_info::AccountInfo<'a>>,
-    vote_counter: Option<&'b solana_program::account_info::AccountInfo<'a>>,
     ncn: Option<&'b solana_program::account_info::AccountInfo<'a>>,
-    account_payer: Option<&'b solana_program::account_info::AccountInfo<'a>>,
-    system_program: Option<&'b solana_program::account_info::AccountInfo<'a>>,
+    operator: Option<&'b solana_program::account_info::AccountInfo<'a>>,
+    admin: Option<&'b solana_program::account_info::AccountInfo<'a>>,
+    snapshot: Option<&'b solana_program::account_info::AccountInfo<'a>>,
     /// Additional instruction accounts `(AccountInfo, is_writable, is_signer)`.
     __remaining_accounts: Vec<(
         &'b solana_program::account_info::AccountInfo<'a>,

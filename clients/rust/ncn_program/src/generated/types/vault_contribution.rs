@@ -5,18 +5,14 @@
 //! <https://github.com/kinobi-so/kinobi>
 //!
 
+use crate::generated::types::StakeWeights;
 use borsh::BorshDeserialize;
 use borsh::BorshSerialize;
-use solana_program::pubkey::Pubkey;
 
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct StMintEntry {
-    #[cfg_attr(
-        feature = "serde",
-        serde(with = "serde_with::As::<serde_with::DisplayFromStr>")
-    )]
-    pub st_mint: Pubkey,
-    pub weight_bps: u16,
-    pub reserve_switchboard_feed: [u8; 32],
+pub struct VaultContribution {
+    pub registry_slot: u64,
+    pub stake_weight: StakeWeights,
+    pub next_epoch_stake_weight: StakeWeights,
 }

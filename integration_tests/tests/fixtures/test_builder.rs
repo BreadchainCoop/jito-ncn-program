@@ -30,6 +30,11 @@ pub struct TestNcn {
     pub vaults: Vec<VaultRoot>,
 }
 
+/// Digest used by the TestNcn certificate helpers when a test does not care
+/// about the message content. VerifyCertificate is stateless over an
+/// arbitrary 32-byte digest.
+pub const TEST_DIGEST: [u8; 32] = [42u8; 32];
+
 /// Represents a single node within the test NCN setup,
 /// detailing its connections and delegation status.
 #[allow(dead_code)]
@@ -269,11 +274,7 @@ impl TestBuilder {
         let mint_amount: u64 = sol_to_lamports(100_000_000.0);
 
         let should_generate = token_mint.is_none();
-        let pass_through = if token_mint.is_some() {
-            token_mint.unwrap()
-        } else {
-            Keypair::new()
-        };
+        let pass_through = token_mint.unwrap_or_else(Keypair::new);
 
         for _ in 0..vault_count {
             let pass_through = if should_generate {
@@ -463,22 +464,19 @@ impl TestBuilder {
         Ok(())
     }
 
-    pub async fn cast_vote_for_test_ncn(
+    /// Builds and submits a certificate over `digest` signed by every
+    /// operator not listed in `none_signers_indecies`, against the snapshot's
+    /// current generation.
+    pub async fn verify_certificate_for_test_ncn(
         &mut self,
         test_ncn: &TestNcn,
+        digest: [u8; 32],
         none_signers_indecies: Vec<usize>,
     ) -> TestResult<()> {
         let mut ncn_program_client = self.ncn_program_client();
         let ncn = test_ncn.ncn_root.ncn_pubkey;
 
-        // Get the current vote counter to use as the message
-        let vote_counter = ncn_program_client.get_vote_counter(ncn).await.unwrap();
-        let current_count = vote_counter.count();
-
-        // Create message from the current counter value (padded to 32 bytes)
-        let count_bytes = current_count.to_le_bytes();
-        let mut message = [0u8; 32];
-        message[..8].copy_from_slice(&count_bytes);
+        let expected_generation = ncn_program_client.get_snapshot(ncn).await?.generation();
 
         let mut signitures: Vec<G1Point> = vec![];
         let mut apk2_pubkeys: Vec<G2Point> = vec![];
@@ -487,7 +485,7 @@ impl TestBuilder {
                 apk2_pubkeys.push(operator.bn128_g2_pubkey);
                 let signature = operator
                     .bn128_privkey
-                    .sign::<Sha256Normalized>(&MessageDigest(message))
+                    .sign::<Sha256Normalized>(&MessageDigest(digest))
                     .unwrap();
                 signitures.push(signature);
             }
@@ -511,7 +509,14 @@ impl TestBuilder {
         println!("apk2: {:?}", apk2);
 
         ncn_program_client
-            .do_cast_vote(ncn, agg_sig, apk2, signers_bitmap)
+            .do_verify_certificate(
+                ncn,
+                digest,
+                agg_sig,
+                apk2,
+                signers_bitmap,
+                expected_generation,
+            )
             .await
     }
 
@@ -527,7 +532,6 @@ impl TestBuilder {
 
         let clock = self.clock().await;
         let slot = clock.slot;
-        let epoch = clock.epoch;
         let ncn = test_ncn.ncn_root.ncn_pubkey;
 
         let operators_for_update = test_ncn
@@ -605,6 +609,7 @@ impl TestBuilder {
     /// Performs all necessary steps to snapshot the state of the TestNcn for the current epoch.
     /// Initializes epoch state, snapshot, operator snapshots, and VOD snapshots.
     // Intermission 2 - all snapshots are taken
+    #[allow(dead_code)]
     pub async fn snapshot_test_ncn(&mut self, test_ncn: &TestNcn) -> TestResult<()> {
         self.add_snapshot_to_test_ncn(test_ncn).await?;
 
@@ -624,9 +629,10 @@ impl TestBuilder {
         Ok(())
     }
 
-    /// Casts votes (default WeatherStatus) for all active operators in the TestNcn for the current epoch.
-    // 11 - Cast all votes for active operators
-    pub async fn cast_vote_all_operators_who_can_vote(
+    /// Builds and verifies a certificate over TEST_DIGEST signed by every
+    /// operator that currently has the minimum stake.
+    // 11 - Verify a certificate signed by all operators who can sign
+    pub async fn verify_certificate_all_operators_who_can_sign(
         &mut self,
         test_ncn: &TestNcn,
     ) -> TestResult<()> {
@@ -635,7 +641,7 @@ impl TestBuilder {
         let ncn = test_ncn.ncn_root.ncn_pubkey;
         let mut non_signers_indices: Vec<usize> = Vec::new();
 
-        // Collect all active operators for voting
+        // Collect all active operators for signing
         let mut active_operators = Vec::new();
         for (i, operator_root) in test_ncn.operators.iter().enumerate() {
             let operator = operator_root.operator_pubkey;
@@ -650,19 +656,12 @@ impl TestBuilder {
             }
         }
 
-        // If no active operators, nothing to vote on
+        // If no active operators, nothing to certify
         if active_operators.is_empty() {
             return Ok(());
         }
 
-        // Get the current vote counter to use as the message
-        let vote_counter = ncn_program_client.get_vote_counter(ncn).await.unwrap();
-        let current_count = vote_counter.count();
-
-        // Create message from the current counter value (padded to 32 bytes)
-        let count_bytes = current_count.to_le_bytes();
-        let mut vote_message = [0u8; 32];
-        vote_message[..8].copy_from_slice(&count_bytes);
+        let expected_generation = ncn_program_client.get_snapshot(ncn).await?.generation();
 
         // Collect signatures and public keys from all active operators
         let mut signatures: Vec<G1Point> = vec![];
@@ -672,7 +671,7 @@ impl TestBuilder {
             apk2_pubkeys.push(operator.bn128_g2_pubkey);
             let signature = operator
                 .bn128_privkey
-                .sign::<Sha256Normalized>(&MessageDigest(vote_message))
+                .sign::<Sha256Normalized>(&MessageDigest(TEST_DIGEST))
                 .unwrap();
             signatures.push(signature);
         }
@@ -688,13 +687,15 @@ impl TestBuilder {
         // Create signers bitmap (all active operators signed, so no non-signers)
         let signers_bitmap = create_signer_bitmap(&non_signers_indices, test_ncn.operators.len());
 
-        // Cast the aggregated vote
+        // Verify the aggregated certificate
         ncn_program_client
-            .do_cast_vote(
+            .do_verify_certificate(
                 ncn,
+                TEST_DIGEST,
                 aggregated_signature_compressed,
                 aggregated_apk2_compressed,
                 signers_bitmap,
+                expected_generation,
             )
             .await?;
 

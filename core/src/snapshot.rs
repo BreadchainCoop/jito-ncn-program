@@ -45,6 +45,11 @@ pub struct Snapshot {
     minimum_stake: StakeWeights,
 
     last_snapshot_slot: PodU64, // Track the last slot when the snapshot was taken
+
+    /// Operator-set generation. Bumped on operator register, remove, and key
+    /// rotation; certificates verify only against their generation
+    /// (docs/INTERFACES.md par.3).
+    generation: PodU64,
 }
 
 impl Discriminator for Snapshot {
@@ -66,6 +71,7 @@ impl Snapshot {
             total_aggregated_g1_pubkey: [0; G1_COMPRESSED_POINT_SIZE],
             operator_snapshots: [OperatorSnapshot::default(); 256],
             minimum_stake,
+            generation: PodU64::from(0),
         }
     }
 
@@ -88,6 +94,7 @@ impl Snapshot {
         let default_operator_snapshot = OperatorSnapshot::default();
         self.operator_snapshots = [default_operator_snapshot; 256];
         self.minimum_stake = minimum_stake;
+        self.generation = PodU64::from(0);
     }
 
     pub fn seeds(ncn: &Pubkey) -> Vec<Vec<u8>> {
@@ -145,8 +152,31 @@ impl Snapshot {
         self.last_snapshot_slot.into()
     }
 
+    /// Records the slot of the latest stake snapshot (operator registration or
+    /// vault-operator-delegation crank). VerifyCertificate's slot-freshness
+    /// check measures against this.
+    pub fn set_last_snapshot_slot(&mut self, slot: u64) {
+        self.last_snapshot_slot = PodU64::from(slot);
+    }
+
     pub fn minimum_stake(&self) -> &StakeWeights {
         &self.minimum_stake
+    }
+
+    /// Current operator-set generation (bumped on register / remove / key rotation)
+    pub fn generation(&self) -> u64 {
+        self.generation.into()
+    }
+
+    /// Bumps the operator-set generation, invalidating certificates assembled
+    /// against the previous generation.
+    pub fn bump_generation(&mut self) -> Result<(), NCNProgramError> {
+        self.generation = PodU64::from(
+            self.generation()
+                .checked_add(1)
+                .ok_or(NCNProgramError::ArithmeticOverflow)?,
+        );
+        Ok(())
     }
 
     fn increment_operator_registration(
@@ -255,6 +285,10 @@ impl Snapshot {
             }
         }
 
+        // Key rotation changes the aggregate: certificates assembled against
+        // the previous generation must no longer verify.
+        self.bump_generation()?;
+
         Ok(())
     }
 
@@ -319,7 +353,45 @@ impl Snapshot {
         self.operator_snapshots[operator_index as usize] = operator_snapshot;
 
         self.increment_operator_registration(slot)?;
+
+        // Adding an operator changes the signer set: certificates assembled
+        // against the previous generation must no longer verify.
+        self.bump_generation()?;
         Ok(())
+    }
+
+    /// Removes an operator from the snapshot (docs/INTERFACES.md §3
+    /// RemoveOperator): subtracts its G1 key from the running APK, tombstones
+    /// its index slot (index NOT reused within the same epoch — the slot is
+    /// left as `u64::MAX` and `operators_registered` is unchanged so the
+    /// verify loop still covers every live index), and bumps the generation.
+    ///
+    /// Returns the freed `ncn_operator_index`.
+    pub fn remove_operator_snapshot(&mut self, operator: &Pubkey) -> Result<u64, NCNProgramError> {
+        let (index, g1_pubkey) = {
+            let operator_snapshot = self
+                .find_operator_snapshot(operator)
+                .ok_or(NCNProgramError::OperatorIsNotInSnapshot)?;
+            (
+                operator_snapshot.ncn_operator_index(),
+                operator_snapshot.g1_pubkey(),
+            )
+        };
+
+        // Subtract the operator's key from the running aggregate. A zeroed key
+        // never contributed to the aggregate, so there is nothing to subtract.
+        if g1_pubkey != [0u8; G1_COMPRESSED_POINT_SIZE] {
+            self.subtract_g1_pubkey_from_total_agg(&g1_pubkey)?;
+        }
+
+        // Tombstone the slot: reset to the default (index = u64::MAX, inactive,
+        // zero key). The index is left occupied by a tombstone rather than
+        // shifting the array so live operators keep their indices.
+        self.operator_snapshots[index as usize] = OperatorSnapshot::default();
+
+        self.bump_generation()?;
+
+        Ok(index)
     }
 
     /// Get all active operator snapshots
@@ -337,6 +409,63 @@ impl Snapshot {
         operator_snapshot: &OperatorSnapshot,
     ) {
         self.operator_snapshots[operator_index] = *operator_snapshot;
+    }
+}
+
+/// One vault's weighted contribution to an operator's stake, keyed by the
+/// vault's position in the VaultRegistry vault list. The operator total is
+/// the sum over all occupied contributions (docs/INTERFACES.md par.3):
+/// sum(delegation_i * weight_bps_i / 10_000).
+#[derive(Debug, Clone, Copy, Zeroable, Pod, ShankType)]
+#[repr(C)]
+pub struct VaultContribution {
+    /// Position of the vault in the VaultRegistry vault list (u64::MAX = empty)
+    registry_slot: PodU64,
+    /// Weighted stake contribution of this vault for the current epoch
+    stake_weight: StakeWeights,
+    /// Weighted stake contribution of this vault for the next epoch
+    next_epoch_stake_weight: StakeWeights,
+}
+
+impl VaultContribution {
+    pub const EMPTY_REGISTRY_SLOT: u64 = u64::MAX;
+
+    pub fn new(
+        registry_slot: u64,
+        stake_weight: &StakeWeights,
+        next_epoch_stake_weight: &StakeWeights,
+    ) -> Self {
+        Self {
+            registry_slot: PodU64::from(registry_slot),
+            stake_weight: *stake_weight,
+            next_epoch_stake_weight: *next_epoch_stake_weight,
+        }
+    }
+
+    pub fn registry_slot(&self) -> u64 {
+        self.registry_slot.into()
+    }
+
+    pub fn stake_weight(&self) -> &StakeWeights {
+        &self.stake_weight
+    }
+
+    pub fn next_epoch_stake_weight(&self) -> &StakeWeights {
+        &self.next_epoch_stake_weight
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.registry_slot() == Self::EMPTY_REGISTRY_SLOT
+    }
+}
+
+impl Default for VaultContribution {
+    fn default() -> Self {
+        Self {
+            registry_slot: PodU64::from(Self::EMPTY_REGISTRY_SLOT),
+            stake_weight: StakeWeights::default(),
+            next_epoch_stake_weight: StakeWeights::default(),
+        }
     }
 }
 
@@ -362,6 +491,10 @@ pub struct OperatorSnapshot {
 
     stake_weight: StakeWeights,
     next_epoch_stake_weight: StakeWeights,
+
+    /// Per-vault weighted stake contributions, keyed by VaultRegistry slot;
+    /// `stake_weight` / `next_epoch_stake_weight` above are the running sums
+    vault_contributions: [VaultContribution; 16],
 }
 
 impl Default for OperatorSnapshot {
@@ -378,6 +511,7 @@ impl Default for OperatorSnapshot {
             has_minimum_stake_next_epoch: PodBool::from(false),
             stake_weight: StakeWeights::default(),
             next_epoch_stake_weight: StakeWeights::default(),
+            vault_contributions: [VaultContribution::default(); MAX_VAULTS],
         }
     }
 }
@@ -404,6 +538,7 @@ impl OperatorSnapshot {
             has_minimum_stake_next_epoch: PodBool::from(false),
             stake_weight: StakeWeights::default(),
             next_epoch_stake_weight: StakeWeights::default(),
+            vault_contributions: [VaultContribution::default(); MAX_VAULTS],
         })
     }
 
@@ -433,6 +568,8 @@ impl OperatorSnapshot {
         self.has_minimum_stake = PodBool::from(false);
         self.has_minimum_stake_next_epoch = PodBool::from(false);
         self.stake_weight = StakeWeights::default();
+        self.next_epoch_stake_weight = StakeWeights::default();
+        self.vault_contributions = [VaultContribution::default(); MAX_VAULTS];
 
         Ok(())
     }
@@ -499,6 +636,10 @@ impl OperatorSnapshot {
         &self.next_epoch_stake_weight
     }
 
+    pub fn vault_contributions(&self) -> &[VaultContribution] {
+        &self.vault_contributions
+    }
+
     pub fn set_has_minimum_stake_this_epoch(&mut self, has_minimum_stake: bool) {
         self.has_minimum_stake = PodBool::from(has_minimum_stake);
     }
@@ -518,6 +659,7 @@ impl OperatorSnapshot {
     pub fn snapshot_vault_operator_delegation(
         &mut self,
         current_slot: u64,
+        registry_slot: u64,
         stake_weights: &StakeWeights,
         next_epoch_stake_weights: &StakeWeights,
         minimum_stake: &StakeWeights,
@@ -526,8 +668,33 @@ impl OperatorSnapshot {
             return Err(NCNProgramError::OperatorSnapshotIsNotActive);
         }
 
-        self.set_stake_weight(stake_weights);
-        self.set_next_epoch_stake_weight(next_epoch_stake_weights);
+        if registry_slot >= MAX_VAULTS as u64 {
+            return Err(NCNProgramError::TooManyVaultOperatorDelegations);
+        }
+
+        // Upsert this vault's weighted contribution (keyed by its registry
+        // slot): a re-crank of the same vault replaces its previous
+        // contribution instead of double counting it.
+        let position = self
+            .vault_contributions
+            .iter()
+            .position(|c| c.registry_slot() == registry_slot)
+            .or_else(|| self.vault_contributions.iter().position(|c| c.is_empty()))
+            .ok_or(NCNProgramError::TooManyVaultOperatorDelegations)?;
+
+        self.vault_contributions[position] =
+            VaultContribution::new(registry_slot, stake_weights, next_epoch_stake_weights);
+
+        // Recompute the operator totals across all vault contributions
+        let mut total = StakeWeights::default();
+        let mut next_epoch_total = StakeWeights::default();
+        for contribution in self.vault_contributions.iter().filter(|c| !c.is_empty()) {
+            total.increment(contribution.stake_weight())?;
+            next_epoch_total.increment(contribution.next_epoch_stake_weight())?;
+        }
+
+        self.set_stake_weight(&total);
+        self.set_next_epoch_stake_weight(&next_epoch_total);
 
         self.set_has_minimum_stake_this_epoch(
             self.stake_weight().stake_weight() >= minimum_stake.stake_weight(),
@@ -681,7 +848,8 @@ mod tests {
             + size_of::<PodBool>() // has_minimum_stake
             + size_of::<PodBool>() // has_minimum_stake_next_epoch
             + size_of::<StakeWeights>() // stake_weight
-            + size_of::<StakeWeights>(); // next_epoch_stake_weight
+            + size_of::<StakeWeights>() // next_epoch_stake_weight
+            + size_of::<[VaultContribution; MAX_VAULTS]>(); // vault_contributions
 
         assert_eq!(size_of::<OperatorSnapshot>(), expected_total);
     }
@@ -700,9 +868,25 @@ mod tests {
             + size_of::<PodU64>() // operators_can_vote_count
             + size_of::<[u8; G1_COMPRESSED_POINT_SIZE]>() // total_aggregated_g1_pubkey
             + size_of::<[OperatorSnapshot; 256]>() // operator_snapshots
-            + size_of::<StakeWeights>(); // minimum_stake
+            + size_of::<StakeWeights>() // minimum_stake
+            + size_of::<PodU64>(); // generation
 
         assert_eq!(size_of::<Snapshot>(), expected_total);
+    }
+
+    #[test]
+    fn test_snapshot_generation_bump() {
+        let mut snapshot = Box::new(Snapshot::new(
+            &Pubkey::new_unique(),
+            1,
+            100,
+            StakeWeights::new(1),
+        ));
+        assert_eq!(snapshot.generation(), 0);
+        snapshot.bump_generation().unwrap();
+        assert_eq!(snapshot.generation(), 1);
+        snapshot.bump_generation().unwrap();
+        assert_eq!(snapshot.generation(), 2);
     }
 
     #[test]
@@ -1649,6 +1833,7 @@ mod tests {
         let current_slot = 150;
         let result = operator_snapshot.snapshot_vault_operator_delegation(
             current_slot,
+            0, // registry_slot
             &current_stake_weights,
             &next_epoch_stake_weights,
             &minimum_stake,
@@ -1691,6 +1876,7 @@ mod tests {
 
         let result = operator_snapshot.snapshot_vault_operator_delegation(
             current_slot_1,
+            0, // registry_slot
             &current_stake_weights_1,
             &next_epoch_stake_weights_1,
             &minimum_stake,
@@ -1714,6 +1900,7 @@ mod tests {
 
         let result = operator_snapshot.snapshot_vault_operator_delegation(
             current_slot_2,
+            0, // registry_slot
             &current_stake_weights_2,
             &next_epoch_stake_weights_2,
             &minimum_stake,
@@ -1737,6 +1924,7 @@ mod tests {
 
         let result = operator_snapshot.snapshot_vault_operator_delegation(
             current_slot_3,
+            0, // registry_slot
             &current_stake_weights_3,
             &next_epoch_stake_weights_3,
             &minimum_stake,
@@ -1760,6 +1948,7 @@ mod tests {
 
         let result = operator_snapshot.snapshot_vault_operator_delegation(
             current_slot_4,
+            0, // registry_slot
             &current_stake_weights_4,
             &next_epoch_stake_weights_4,
             &minimum_stake,
@@ -1801,6 +1990,7 @@ mod tests {
 
         let result = operator_snapshot.snapshot_vault_operator_delegation(
             150, // current_slot
+            0,   // registry_slot
             &current_stake_weights,
             &next_epoch_stake_weights,
             &minimum_stake,
@@ -1834,6 +2024,7 @@ mod tests {
         let zero_stake_weights = StakeWeights::new(0);
         let result = operator_snapshot.snapshot_vault_operator_delegation(
             150,
+            0, // registry_slot
             &zero_stake_weights,
             &zero_stake_weights,
             &minimum_stake,
@@ -1851,6 +2042,7 @@ mod tests {
         let exact_minimum = StakeWeights::new(1000);
         let result = operator_snapshot.snapshot_vault_operator_delegation(
             200,
+            0, // registry_slot
             &exact_minimum,
             &exact_minimum,
             &minimum_stake,
@@ -1868,6 +2060,7 @@ mod tests {
         let max_stake_weights = StakeWeights::new(u128::MAX);
         let result = operator_snapshot.snapshot_vault_operator_delegation(
             250,
+            0, // registry_slot
             &max_stake_weights,
             &max_stake_weights,
             &minimum_stake,
@@ -1905,6 +2098,7 @@ mod tests {
         // First snapshot
         let result = operator_snapshot.snapshot_vault_operator_delegation(
             150,
+            0, // registry_slot
             &stake_weights,
             &stake_weights,
             &minimum_stake,
@@ -1915,6 +2109,7 @@ mod tests {
         // Second snapshot with later slot
         let result = operator_snapshot.snapshot_vault_operator_delegation(
             200,
+            0, // registry_slot
             &stake_weights,
             &stake_weights,
             &minimum_stake,
@@ -1925,6 +2120,7 @@ mod tests {
         // Third snapshot with earlier slot (should still update)
         let result = operator_snapshot.snapshot_vault_operator_delegation(
             175,
+            0, // registry_slot
             &stake_weights,
             &stake_weights,
             &minimum_stake,

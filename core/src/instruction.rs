@@ -92,6 +92,16 @@ pub enum NCNProgramInstruction {
         signature: [u8; 64],
     },
 
+    /// Removes an operator from the snapshot: tombstones its index, subtracts
+    /// its G1 from the running APK, and bumps the snapshot generation.
+    /// Signer must be the NCN admin or the operator's admin.
+    #[account(0, name = "config")]
+    #[account(1, name = "ncn")]
+    #[account(2, name = "operator")]
+    #[account(3, signer, name = "admin")]
+    #[account(4, writable, name = "snapshot")]
+    RemoveOperator,
+
     /// Updates an operator's IP address and port in their individual operator PDA
     #[account(0, name = "config")]
     #[account(1, writable, name = "ncn_operator_account")]
@@ -104,15 +114,6 @@ pub enum NCNProgramInstruction {
         /// New port (16 bytes)
         port: u16,
     },
-
-    /// Initializes the vote counter PDA for tracking successful votes
-    /// This should be called after InitializeConfig to set up vote tracking
-    #[account(0, name = "config")]
-    #[account(1, writable, name = "vote_counter")]
-    #[account(2, name = "ncn")]
-    #[account(3, writable, name = "account_payer")]
-    #[account(4, name = "system_program")]
-    InitializeVoteCounter,
 
     // ---------------------------------------------------- //
     //                       SNAPSHOT                       //
@@ -147,21 +148,31 @@ pub enum NCNProgramInstruction {
     #[account(7, name = "ncn_operator_state")]
     #[account(8, name = "vault_operator_delegation")]
     #[account(9, writable, name = "snapshot")]
+    #[account(10, name = "vault_registry")]
     SnapshotVaultOperatorDelegation{},
 
     // ---------------------------------------------------- //
-    //                         VOTE                         //
+    //                        VERIFY                        //
     // ---------------------------------------------------- //
-    /// Cast a vote
-    #[account(0, name = "config")]
+    /// Stateless certificate verification (docs/INTERFACES.md par.2).
+    /// Mutates nothing; succeeds iff the aggregate BLS signature over `digest`
+    /// carries >= Config.consensus_threshold_bps of the snapshot's total stake
+    /// at `expected_generation`.
+    #[account(0, name = "ncn_config")]
     #[account(1, name = "ncn")]
     #[account(2, name = "snapshot")]
     #[account(3, name = "restaking_config")]
-    #[account(4, writable, name = "vote_counter")]
-    CastVote {
-        aggregated_signature: [u8; 32],
+    VerifyCertificate {
+        /// The signed 32-byte message digest
+        digest: [u8; 32],
+        /// Aggregate G2 public key of the signers (compressed, 64 bytes)
         aggregated_g2: [u8; 64],
+        /// Aggregate G1 signature (compressed, 32 bytes)
+        aggregated_signature: [u8; 32],
+        /// LSB-first signer bitmap per operator index (byte i>>3, bit i&7, 1 = signed)
         operators_signature_bitmap: Vec<u8>,
+        /// Snapshot operator-set generation the certificate was assembled against
+        expected_generation: u64,
     },
 
 
@@ -178,6 +189,8 @@ pub enum NCNProgramInstruction {
         epochs_after_consensus_before_close: Option<u64>,
         valid_slots_after_consensus: Option<u64>,
         minimum_stake: Option<u128>,
+        /// Stake-weighted consensus threshold in bps of total snapshot stake (1..=10000)
+        consensus_threshold_bps: Option<u16>,
     },
 
 
@@ -196,5 +209,9 @@ pub enum NCNProgramInstruction {
     #[account(2, name = "st_mint")]
     #[account(3, writable, name = "vault_registry")]
     #[account(4, signer, writable, name = "admin")]
-    AdminRegisterStMint{ },
+    AdminRegisterStMint {
+        /// Weight applied to delegations of vaults holding this mint, in bps
+        /// of the delegated amount (1..=10_000; 10_000 = full weight)
+        weight_bps: u16,
+    },
 }

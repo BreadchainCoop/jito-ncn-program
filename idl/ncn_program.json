@@ -295,6 +295,41 @@
       }
     },
     {
+      "name": "RemoveOperator",
+      "accounts": [
+        {
+          "name": "config",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "ncn",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "operator",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "admin",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "snapshot",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u8",
+        "value": 5
+      }
+    },
+    {
       "name": "UpdateOperatorIpPort",
       "accounts": [
         {
@@ -338,41 +373,6 @@
           "type": "u16"
         }
       ],
-      "discriminant": {
-        "type": "u8",
-        "value": 5
-      }
-    },
-    {
-      "name": "InitializeVoteCounter",
-      "accounts": [
-        {
-          "name": "config",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "voteCounter",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "ncn",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "accountPayer",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": [],
       "discriminant": {
         "type": "u8",
         "value": 6
@@ -495,6 +495,11 @@
           "name": "snapshot",
           "isMut": true,
           "isSigner": false
+        },
+        {
+          "name": "vaultRegistry",
+          "isMut": false,
+          "isSigner": false
         }
       ],
       "args": [],
@@ -504,10 +509,10 @@
       }
     },
     {
-      "name": "CastVote",
+      "name": "VerifyCertificate",
       "accounts": [
         {
-          "name": "config",
+          "name": "ncnConfig",
           "isMut": false,
           "isSigner": false
         },
@@ -525,16 +530,11 @@
           "name": "restakingConfig",
           "isMut": false,
           "isSigner": false
-        },
-        {
-          "name": "voteCounter",
-          "isMut": true,
-          "isSigner": false
         }
       ],
       "args": [
         {
-          "name": "aggregatedSignature",
+          "name": "digest",
           "type": {
             "array": [
               "u8",
@@ -552,8 +552,21 @@
           }
         },
         {
+          "name": "aggregatedSignature",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
           "name": "operatorsSignatureBitmap",
           "type": "bytes"
+        },
+        {
+          "name": "expectedGeneration",
+          "type": "u64"
         }
       ],
       "discriminant": {
@@ -609,6 +622,12 @@
           "name": "minimumStake",
           "type": {
             "option": "u128"
+          }
+        },
+        {
+          "name": "consensusThresholdBps",
+          "type": {
+            "option": "u16"
           }
         }
       ],
@@ -683,7 +702,12 @@
           "isSigner": true
         }
       ],
-      "args": [],
+      "args": [
+        {
+          "name": "weightBps",
+          "type": "u16"
+        }
+      ],
       "discriminant": {
         "type": "u8",
         "value": 13
@@ -742,6 +766,12 @@
             "name": "minimumStake",
             "type": {
               "defined": "StakeWeights"
+            }
+          },
+          {
+            "name": "consensusThresholdBps",
+            "type": {
+              "defined": "PodU16"
             }
           }
         ]
@@ -883,6 +913,12 @@
             "type": {
               "defined": "PodU64"
             }
+          },
+          {
+            "name": "generation",
+            "type": {
+              "defined": "PodU64"
+            }
           }
         ]
       }
@@ -907,7 +943,7 @@
                 {
                   "defined": "StMintEntry"
                 },
-                1
+                16
               ]
             }
           },
@@ -918,38 +954,7 @@
                 {
                   "defined": "VaultEntry"
                 },
-                1
-              ]
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "VoteCounter",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "ncn",
-            "type": "publicKey"
-          },
-          {
-            "name": "count",
-            "type": {
-              "defined": "PodU64"
-            }
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          },
-          {
-            "name": "reserved",
-            "type": {
-              "array": [
-                "u8",
-                7
+                16
               ]
             }
           }
@@ -1027,6 +1032,32 @@
       }
     },
     {
+      "name": "VaultContribution",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "registrySlot",
+            "type": {
+              "defined": "PodU64"
+            }
+          },
+          {
+            "name": "stakeWeight",
+            "type": {
+              "defined": "StakeWeights"
+            }
+          },
+          {
+            "name": "nextEpochStakeWeight",
+            "type": {
+              "defined": "StakeWeights"
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "OperatorSnapshot",
       "type": {
         "kind": "struct",
@@ -1097,6 +1128,17 @@
             "type": {
               "defined": "StakeWeights"
             }
+          },
+          {
+            "name": "vaultContributions",
+            "type": {
+              "array": [
+                {
+                  "defined": "VaultContribution"
+                },
+                16
+              ]
+            }
           }
         ]
       }
@@ -1147,6 +1189,12 @@
           {
             "name": "stMint",
             "type": "publicKey"
+          },
+          {
+            "name": "weightBps",
+            "type": {
+              "defined": "PodU16"
+            }
           },
           {
             "name": "reserveSwitchboardFeed",
@@ -1775,6 +1823,31 @@
       "code": 8805,
       "name": "InvalidOperatorCount",
       "msg": "Invalid operator count"
+    },
+    {
+      "code": 8806,
+      "name": "InvalidConsensusThresholdBps",
+      "msg": "Invalid consensus threshold bps"
+    },
+    {
+      "code": 8807,
+      "name": "SnapshotGenerationMismatch",
+      "msg": "Snapshot generation mismatch"
+    },
+    {
+      "code": 8808,
+      "name": "InsufficientStakeBps",
+      "msg": "Insufficient signed stake bps for consensus threshold"
+    },
+    {
+      "code": 8809,
+      "name": "CannotRemoveOperator",
+      "msg": "Cannot remove operator: signer is not authorized"
+    },
+    {
+      "code": 8810,
+      "name": "InvalidWeightBps",
+      "msg": "Invalid weight bps"
     }
   ],
   "metadata": {

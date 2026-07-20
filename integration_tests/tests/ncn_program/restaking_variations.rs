@@ -6,14 +6,15 @@ mod tests {
     use solana_sdk::msg;
 
     use crate::fixtures::{
-        ncn_program_client::assert_ncn_program_error, test_builder::TestBuilder, TestResult,
+        ncn_program_client::assert_ncn_program_error,
+        test_builder::{TestBuilder, TEST_DIGEST},
+        TestResult,
     };
 
     #[tokio::test]
     async fn test_removing_operator() -> TestResult<()> {
         let mut fixture = TestBuilder::new().await;
         let mut restaking_client = fixture.restaking_program_client();
-        let mut ncn_program_client = fixture.ncn_program_client();
 
         const OPERATOR_COUNT: usize = 3;
         const OPERATOR_FEE_BPS: u16 = MAX_FEE_BPS;
@@ -29,7 +30,7 @@ mod tests {
                 .await?;
 
             fixture
-                .cast_vote_all_operators_who_can_vote(&test_ncn)
+                .verify_certificate_all_operators_who_can_sign(&test_ncn)
                 .await?;
         }
 
@@ -49,7 +50,7 @@ mod tests {
                 .update_snapshot_test_ncn_new_epoch(&test_ncn)
                 .await?;
             fixture
-                .cast_vote_all_operators_who_can_vote(&test_ncn)
+                .verify_certificate_all_operators_who_can_sign(&test_ncn)
                 .await?;
         }
 
@@ -80,7 +81,7 @@ mod tests {
                 .await?;
 
             fixture
-                .cast_vote_all_operators_who_can_vote(&test_ncn)
+                .verify_certificate_all_operators_who_can_sign(&test_ncn)
                 .await?;
         }
 
@@ -113,7 +114,7 @@ mod tests {
 
             let none_signers_indecies: Vec<usize> = vec![];
             let result = fixture
-                .cast_vote_for_test_ncn(&test_ncn, none_signers_indecies)
+                .verify_certificate_for_test_ncn(&test_ncn, TEST_DIGEST, none_signers_indecies)
                 .await;
             assert_ncn_program_error(result, NCNProgramError::OperatorHasNoMinimumStake, Some(1));
         }
@@ -138,7 +139,6 @@ mod tests {
         }
 
         {
-            let epoch = fixture.clock().await.epoch;
             let ncn = test_ncn.ncn_root.ncn_pubkey;
 
             let operator = test_ncn.operators[0].operator_pubkey;

@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use crate::{
-    getters::{get_guaranteed_epoch_and_slot, get_or_create_vote_counter},
+    getters::get_guaranteed_epoch_and_slot,
     handler::CliHandler,
     instructions::{crank_snapshot_unupdated, get_or_create_snapshot},
     keeper::{
@@ -65,19 +65,6 @@ pub async fn startup_ncn_keeper(
     .await
     {
         return Err(anyhow::anyhow!("Failed to create snapshot account"));
-    }
-
-    // Create vote counter if it doesn't exist
-    let result = get_or_create_vote_counter(handler).await;
-    if check_and_timeout_error(
-        "Create Vote Counter".to_string(),
-        &result,
-        error_timeout_ms,
-        current_keeper_epoch,
-    )
-    .await
-    {
-        return Err(anyhow::anyhow!("Failed to create vote counter"));
     }
 
     info!("Required accounts initialized successfully");

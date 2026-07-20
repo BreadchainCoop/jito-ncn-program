@@ -29,6 +29,7 @@ pub struct Snapshot {
     pub operator_snapshots: [OperatorSnapshot; 256],
     pub minimum_stake: StakeWeights,
     pub last_snapshot_slot: u64,
+    pub generation: u64,
 }
 
 impl Snapshot {

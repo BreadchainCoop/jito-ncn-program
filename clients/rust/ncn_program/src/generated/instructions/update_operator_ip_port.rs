@@ -76,7 +76,7 @@ pub struct UpdateOperatorIpPortInstructionData {
 
 impl UpdateOperatorIpPortInstructionData {
     pub fn new() -> Self {
-        Self { discriminator: 5 }
+        Self { discriminator: 6 }
     }
 }
 

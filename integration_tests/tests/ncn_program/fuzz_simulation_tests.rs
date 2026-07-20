@@ -1,6 +1,9 @@
 #[cfg(test)]
 mod fuzz_tests {
-    use crate::fixtures::{test_builder::TestBuilder, TestResult};
+    use crate::fixtures::{
+        test_builder::{TestBuilder, TEST_DIGEST},
+        TestResult,
+    };
     use jito_restaking_core::{config::Config, ncn_vault_ticket::NcnVaultTicket};
     use ncn_program_core::{
         constants::MAX_OPERATORS,
@@ -87,7 +90,7 @@ mod fuzz_tests {
         // 2.c. Initialize vaults and establish NCN <> vaults and vault <> operator relationships
         {
             // Create vaults for each mint according to the configuration
-            for (_mint_idx, mint_config) in config.mints.iter().enumerate() {
+            for mint_config in config.mints.iter() {
                 fixture
                     .add_vaults_to_test_ncn(
                         &mut test_ncn,
@@ -153,10 +156,6 @@ mod fuzz_tests {
                     None,
                 )
                 .await?;
-            ncn_program_client
-                .do_initialize_vote_counter(test_ncn.ncn_root.ncn_pubkey)
-                .await?;
-
             // 3.b Initialize the vault_registry - creates accounts to track vaults
             ncn_program_client
                 .do_full_initialize_vault_registry(test_ncn.ncn_root.ncn_pubkey)
@@ -201,21 +200,15 @@ mod fuzz_tests {
                 .await?;
         }
 
-        // 5. Cast votes from operators
+        // 5. Verify a certificate signed by the full operator set
         {
-            // Get the current vote counter to use as the message
-            let vote_counter = ncn_program_client
-                .get_vote_counter(ncn_pubkey)
-                .await
-                .unwrap();
-            let current_count = vote_counter.count();
+            let digest = TEST_DIGEST;
+            let expected_generation = ncn_program_client
+                .get_snapshot(ncn_pubkey)
+                .await?
+                .generation();
 
-            // Create message from the current counter value (padded to 32 bytes)
-            let count_bytes = current_count.to_le_bytes();
-            let mut vote_message = [0u8; 32];
-            vote_message[..8].copy_from_slice(&count_bytes);
-
-            // All operators sign the same message (no non-signers in this simulation)
+            // All operators sign the same digest (no non-signers in this simulation)
             let mut signatures: Vec<G1Point> = vec![];
             let mut apk2_pubkeys: Vec<G2Point> = vec![];
 
@@ -223,7 +216,7 @@ mod fuzz_tests {
                 apk2_pubkeys.push(operator_root.bn128_g2_pubkey);
                 let signature = operator_root
                     .bn128_privkey
-                    .sign::<Sha256Normalized>(&MessageDigest(vote_message))
+                    .sign::<Sha256Normalized>(&MessageDigest(digest))
                     .unwrap();
                 signatures.push(signature);
             }
@@ -240,17 +233,19 @@ mod fuzz_tests {
             let signers_bitmap =
                 create_signer_bitmap(&non_signers_indices, test_ncn.operators.len());
 
-            // Cast the aggregated vote
+            // Verify the aggregated certificate
             ncn_program_client
-                .do_cast_vote(
+                .do_verify_certificate(
                     ncn_pubkey,
+                    digest,
                     agg_sig_compressed,
                     apk2_compressed,
                     signers_bitmap,
+                    expected_generation,
                 )
                 .await?;
 
-            println!("  ✅ Voting completed successfully");
+            println!("  ✅ Certificate verification completed successfully");
         }
 
         Ok(())

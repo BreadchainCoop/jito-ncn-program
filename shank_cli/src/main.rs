@@ -3,7 +3,7 @@ use std::{fs::File, io::Write};
 use anyhow::{anyhow, Result};
 use env_logger::Env;
 use log::{debug, info};
-use shank_idl::{extract_idl, manifest::Manifest, ParseIdlOpts};
+use shank_idl::{parse_file, ParseIdlConfig, ParseIdlOpts};
 
 struct IdlConfiguration {
     program_id: String,
@@ -39,13 +39,12 @@ fn main() -> Result<()> {
                     crate_root.display()
                 ));
             }
-            let manifest = Manifest::from_path(&cargo_toml)?;
-            debug!("manifest: {:?}", manifest);
-            let lib_rel_path = manifest
-                .lib_rel_path()
-                .ok_or_else(|| anyhow!("Program needs to be a lib"))?;
-            debug!("lib_rel_path: {:?}", lib_rel_path);
-            let lib_full_path_str = crate_root.join(path).join(lib_rel_path);
+            // NOTE: shank_idl's `extract_idl` discovers the crate manifest via
+            // the `cargo_toml` crate, which cannot parse `edition = "2024"`
+            // workspace manifests. Every program crate here uses the
+            // conventional `src/lib.rs` lib path and the workspace version, so
+            // call `parse_file` directly instead of going through the manifest.
+            let lib_full_path_str = crate_root.join(path).join("src").join("lib.rs");
             let lib_full_path = lib_full_path_str
                 .to_str()
                 .ok_or_else(|| anyhow!("Invalid Path"))?;
@@ -55,7 +54,14 @@ fn main() -> Result<()> {
                 program_address_override: Some(idl.program_id.to_string()),
                 ..ParseIdlOpts::default()
             };
-            let idl = extract_idl(lib_full_path, opts)?
+            let parse_config = ParseIdlConfig {
+                program_version: env!("CARGO_PKG_VERSION").to_string(),
+                program_name: idl.name.to_string(),
+                detect_custom_struct: opts.detect_custom_struct,
+                require_program_address: opts.require_program_address,
+                program_address_override: opts.program_address_override,
+            };
+            let idl = parse_file(lib_full_path, &parse_config)?
                 .ok_or_else(|| anyhow!("No IDL could be extracted"))?;
             idls.push(idl);
         }

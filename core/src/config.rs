@@ -3,13 +3,16 @@ use std::mem::size_of;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use bytemuck::{Pod, Zeroable};
-use jito_bytemuck::{types::PodU64, AccountDeserialize, Discriminator};
+use jito_bytemuck::{
+    types::{PodU16, PodU64},
+    AccountDeserialize, Discriminator,
+};
 use shank::ShankAccount;
 use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
 
 use crate::{
-    discriminators::Discriminators, fees::FeeConfig, loaders::check_load,
-    stake_weight::StakeWeights,
+    constants::DEFAULT_CONSENSUS_THRESHOLD_BPS, discriminators::Discriminators, fees::FeeConfig,
+    loaders::check_load, stake_weight::StakeWeights,
 };
 
 #[derive(Debug, BorshSerialize, BorshDeserialize)]
@@ -38,6 +41,10 @@ pub struct Config {
     pub bump: u8,
     /// Minimum stake weight required to vote
     pub minimum_stake: StakeWeights,
+    /// Stake-weighted consensus threshold in basis points of the total
+    /// snapshot stake (1..=10_000). A certificate verifies only if the signed
+    /// stake reaches this fraction of the snapshot's total stake.
+    pub consensus_threshold_bps: PodU16,
 }
 
 impl Discriminator for Config {
@@ -80,6 +87,7 @@ impl Config {
             fee_config: *fee_config,
             bump,
             minimum_stake: *minimum_stake,
+            consensus_threshold_bps: PodU16::from(DEFAULT_CONSENSUS_THRESHOLD_BPS),
         }
     }
 
@@ -141,6 +149,10 @@ impl Config {
     pub fn minimum_stake(&self) -> &StakeWeights {
         &self.minimum_stake
     }
+
+    pub fn consensus_threshold_bps(&self) -> u16 {
+        self.consensus_threshold_bps.into()
+    }
 }
 
 #[rustfmt::skip]
@@ -154,6 +166,7 @@ impl fmt::Display for Config {
         writeln!(f, "  Starting Valid Epochs:        {}", self.starting_valid_epoch())?;
         writeln!(f, "  Close Epoch:                  {}", self.epochs_after_consensus_before_close())?;
         writeln!(f, "  Minimum Stake Weight:         {:?}", self.minimum_stake())?;
+        writeln!(f, "  Consensus Threshold (bps):    {}", self.consensus_threshold_bps())?;
 
         Ok(())
     }
@@ -175,9 +188,26 @@ mod tests {
             + size_of::<PodU64>() // starting_valid_epoch
             + size_of::<FeeConfig>() // fee_config
             + 1 // bump
-            + size_of::<StakeWeights>(); // minimum_stake
+            + size_of::<StakeWeights>() // minimum_stake
+            + size_of::<PodU16>(); // consensus_threshold_bps
 
         assert_eq!(size_of::<Config>(), expected_total);
         assert_eq!(size_of::<Config>() + 8, Config::SIZE);
+    }
+
+    #[test]
+    fn test_default_consensus_threshold() {
+        let config = Config::new(
+            &Pubkey::new_unique(),
+            &Pubkey::new_unique(),
+            0,    // starting_valid_epoch
+            1000, // valid_slots_after_consensus
+            1,    // epochs_before_stall
+            10,   // epochs_after_consensus_before_close
+            &FeeConfig::new(&Pubkey::new_unique(), 100, 0).unwrap(),
+            &StakeWeights::new(100),
+            255, // bump
+        );
+        assert_eq!(config.consensus_threshold_bps(), 6667);
     }
 }

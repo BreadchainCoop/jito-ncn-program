@@ -355,6 +355,21 @@ pub enum NcnProgramError {
     /// 8805 - Invalid operator count
     #[error("Invalid operator count")]
     InvalidOperatorCount = 0x2265,
+    /// 8806 - Invalid consensus threshold bps
+    #[error("Invalid consensus threshold bps")]
+    InvalidConsensusThresholdBps = 0x2266,
+    /// 8807 - Snapshot generation mismatch
+    #[error("Snapshot generation mismatch")]
+    SnapshotGenerationMismatch = 0x2267,
+    /// 8808 - Insufficient signed stake bps for consensus threshold
+    #[error("Insufficient signed stake bps for consensus threshold")]
+    InsufficientStakeBps = 0x2268,
+    /// 8809 - Cannot remove operator: signer is not authorized
+    #[error("Cannot remove operator: signer is not authorized")]
+    CannotRemoveOperator = 0x2269,
+    /// 8810 - Invalid weight bps
+    #[error("Invalid weight bps")]
+    InvalidWeightBps = 0x226A,
 }
 
 impl solana_program::program_error::PrintProgramError for NcnProgramError {

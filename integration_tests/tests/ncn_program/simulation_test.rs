@@ -12,7 +12,9 @@ mod tests {
     use solana_sdk::{msg, signature::Keypair, signer::Signer};
 
     use crate::fixtures::{
-        ncn_program_client::assert_ncn_program_error, test_builder::TestBuilder, TestResult,
+        ncn_program_client::assert_ncn_program_error,
+        test_builder::{TestBuilder, TEST_DIGEST},
+        TestResult,
     };
 
     // This test runs a complete end-to-end NCN (Network of Consensus Nodes) consensus workflow
@@ -163,10 +165,6 @@ mod tests {
                 )
                 .await?;
 
-            ncn_program_client
-                .do_initialize_vote_counter(test_ncn.ncn_root.ncn_pubkey)
-                .await?;
-
             // 4.b Initialize the vault_registry - creates accounts to track vaults
             ncn_program_client
                 .do_full_initialize_vault_registry(test_ncn.ncn_root.ncn_pubkey)
@@ -237,24 +235,16 @@ mod tests {
                 .await?;
         }
 
-        // 6. Cast votes from operators
+        // 6. Verify certificates from operators
         {
             let snapshot = ncn_program_client.get_snapshot(ncn_pubkey).await?;
+            let expected_generation = snapshot.generation();
 
             msg!("Snapshot: {}", snapshot);
 
             {
-                // Get the current vote counter to use as the message
-                let vote_counter = ncn_program_client
-                    .get_vote_counter(ncn_pubkey)
-                    .await
-                    .unwrap();
-                let current_count = vote_counter.count();
-
-                // Create message from the current counter value (padded to 32 bytes)
-                let count_bytes = current_count.to_le_bytes();
-                let mut sunny_vote_message = [0u8; 32];
-                sunny_vote_message[..8].copy_from_slice(&count_bytes);
+                // Certificate signed by every operator that has the minimum stake
+                let sunny_digest = TEST_DIGEST;
 
                 let mut sunny_signatures: Vec<G1Point> = vec![];
                 let mut sunny_apk2_pubkeys: Vec<G2Point> = vec![];
@@ -268,7 +258,7 @@ mod tests {
                         sunny_apk2_pubkeys.push(operator.bn128_g2_pubkey);
                         let signature = operator
                             .bn128_privkey
-                            .sign::<Sha256Normalized>(&MessageDigest(sunny_vote_message))
+                            .sign::<Sha256Normalized>(&MessageDigest(sunny_digest))
                             .unwrap();
                         sunny_signatures.push(signature);
                     } else {
@@ -294,28 +284,22 @@ mod tests {
                 let sunny_signers_bitmap =
                     create_signer_bitmap(&non_signers_indices, test_ncn.operators.len());
 
-                // Cast the aggregated vote for Sunny weather
+                // Verify the aggregated certificate signed by the full quorum
                 ncn_program_client
-                    .do_cast_vote(
+                    .do_verify_certificate(
                         ncn_pubkey,
+                        sunny_digest,
                         sunny_agg_sig_compressed,
                         sunny_apk2_compressed,
                         sunny_signers_bitmap,
+                        expected_generation,
                     )
                     .await?;
             }
             {
-                // Quorum not met case - get the current vote counter for this second vote attempt
-                let vote_counter = ncn_program_client
-                    .get_vote_counter(ncn_pubkey)
-                    .await
-                    .unwrap();
-                let current_count = vote_counter.count();
-
-                // Create message from the current counter value (padded to 32 bytes)
-                let count_bytes = current_count.to_le_bytes();
-                let mut cloudy_vote_message = [0u8; 32];
-                cloudy_vote_message[..8].copy_from_slice(&count_bytes);
+                // Insufficient-stake case: only the first 4 operators sign, which
+                // is below Config.consensus_threshold_bps of the total stake.
+                let cloudy_digest = [7u8; 32];
 
                 let mut signatures: Vec<G1Point> = vec![];
                 let mut apk2_pubkeys: Vec<G2Point> = vec![];
@@ -329,7 +313,7 @@ mod tests {
                         apk2_pubkeys.push(operator.bn128_g2_pubkey);
                         let signature = operator
                             .bn128_privkey
-                            .sign::<Sha256Normalized>(&MessageDigest(cloudy_vote_message))
+                            .sign::<Sha256Normalized>(&MessageDigest(cloudy_digest))
                             .unwrap();
                         signatures.push(signature);
                     } else {
@@ -348,20 +332,22 @@ mod tests {
                 let signers_bitmap =
                     create_signer_bitmap(&non_signers_indices, test_ncn.operators.len());
 
-                // Cast the aggregated vote for  weather
+                // Verify the under-quorum certificate: must be rejected
                 let result = ncn_program_client
-                    .do_cast_vote(
+                    .do_verify_certificate(
                         ncn_pubkey,
+                        cloudy_digest,
                         agg_sig_compressed,
                         apk2_compressed,
                         signers_bitmap,
+                        expected_generation,
                     )
                     .await;
-                assert_ncn_program_error(result, NCNProgramError::QuorumNotMet, Some(1));
+                assert_ncn_program_error(result, NCNProgramError::InsufficientStakeBps, Some(1));
             }
 
             println!("✅ BLS aggregate signature verification successful!");
-            println!("✅ Cast vote operations completed successfully!");
+            println!("✅ Verify certificate operations completed successfully!");
         }
 
         println!("✅ BLS aggregate signature verification implementation complete!");

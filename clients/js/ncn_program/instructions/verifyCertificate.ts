@@ -18,6 +18,8 @@ import {
   getStructEncoder,
   getU32Decoder,
   getU32Encoder,
+  getU64Decoder,
+  getU64Encoder,
   getU8Decoder,
   getU8Encoder,
   transformEncoder,
@@ -31,32 +33,30 @@ import {
   type IInstructionWithData,
   type ReadonlyAccount,
   type ReadonlyUint8Array,
-  type WritableAccount,
 } from '@solana/web3.js';
 import { NCN_PROGRAM_PROGRAM_ADDRESS } from '../programs';
 import { getAccountMetaFactory, type ResolvedAccount } from '../shared';
 
-export const CAST_VOTE_DISCRIMINATOR = 10;
+export const VERIFY_CERTIFICATE_DISCRIMINATOR = 10;
 
-export function getCastVoteDiscriminatorBytes() {
-  return getU8Encoder().encode(CAST_VOTE_DISCRIMINATOR);
+export function getVerifyCertificateDiscriminatorBytes() {
+  return getU8Encoder().encode(VERIFY_CERTIFICATE_DISCRIMINATOR);
 }
 
-export type CastVoteInstruction<
+export type VerifyCertificateInstruction<
   TProgram extends string = typeof NCN_PROGRAM_PROGRAM_ADDRESS,
-  TAccountConfig extends string | IAccountMeta<string> = string,
+  TAccountNcnConfig extends string | IAccountMeta<string> = string,
   TAccountNcn extends string | IAccountMeta<string> = string,
   TAccountSnapshot extends string | IAccountMeta<string> = string,
   TAccountRestakingConfig extends string | IAccountMeta<string> = string,
-  TAccountVoteCounter extends string | IAccountMeta<string> = string,
   TRemainingAccounts extends readonly IAccountMeta<string>[] = [],
 > = IInstruction<TProgram> &
   IInstructionWithData<Uint8Array> &
   IInstructionWithAccounts<
     [
-      TAccountConfig extends string
-        ? ReadonlyAccount<TAccountConfig>
-        : TAccountConfig,
+      TAccountNcnConfig extends string
+        ? ReadonlyAccount<TAccountNcnConfig>
+        : TAccountNcnConfig,
       TAccountNcn extends string ? ReadonlyAccount<TAccountNcn> : TAccountNcn,
       TAccountSnapshot extends string
         ? ReadonlyAccount<TAccountSnapshot>
@@ -64,117 +64,118 @@ export type CastVoteInstruction<
       TAccountRestakingConfig extends string
         ? ReadonlyAccount<TAccountRestakingConfig>
         : TAccountRestakingConfig,
-      TAccountVoteCounter extends string
-        ? WritableAccount<TAccountVoteCounter>
-        : TAccountVoteCounter,
       ...TRemainingAccounts,
     ]
   >;
 
-export type CastVoteInstructionData = {
+export type VerifyCertificateInstructionData = {
   discriminator: number;
-  aggregatedSignature: ReadonlyUint8Array;
+  digest: ReadonlyUint8Array;
   aggregatedG2: ReadonlyUint8Array;
+  aggregatedSignature: ReadonlyUint8Array;
   operatorsSignatureBitmap: ReadonlyUint8Array;
+  expectedGeneration: bigint;
 };
 
-export type CastVoteInstructionDataArgs = {
-  aggregatedSignature: ReadonlyUint8Array;
+export type VerifyCertificateInstructionDataArgs = {
+  digest: ReadonlyUint8Array;
   aggregatedG2: ReadonlyUint8Array;
+  aggregatedSignature: ReadonlyUint8Array;
   operatorsSignatureBitmap: ReadonlyUint8Array;
+  expectedGeneration: number | bigint;
 };
 
-export function getCastVoteInstructionDataEncoder(): Encoder<CastVoteInstructionDataArgs> {
+export function getVerifyCertificateInstructionDataEncoder(): Encoder<VerifyCertificateInstructionDataArgs> {
   return transformEncoder(
     getStructEncoder([
       ['discriminator', getU8Encoder()],
-      ['aggregatedSignature', fixEncoderSize(getBytesEncoder(), 32)],
+      ['digest', fixEncoderSize(getBytesEncoder(), 32)],
       ['aggregatedG2', fixEncoderSize(getBytesEncoder(), 64)],
+      ['aggregatedSignature', fixEncoderSize(getBytesEncoder(), 32)],
       [
         'operatorsSignatureBitmap',
         addEncoderSizePrefix(getBytesEncoder(), getU32Encoder()),
       ],
+      ['expectedGeneration', getU64Encoder()],
     ]),
-    (value) => ({ ...value, discriminator: CAST_VOTE_DISCRIMINATOR })
+    (value) => ({ ...value, discriminator: VERIFY_CERTIFICATE_DISCRIMINATOR })
   );
 }
 
-export function getCastVoteInstructionDataDecoder(): Decoder<CastVoteInstructionData> {
+export function getVerifyCertificateInstructionDataDecoder(): Decoder<VerifyCertificateInstructionData> {
   return getStructDecoder([
     ['discriminator', getU8Decoder()],
-    ['aggregatedSignature', fixDecoderSize(getBytesDecoder(), 32)],
+    ['digest', fixDecoderSize(getBytesDecoder(), 32)],
     ['aggregatedG2', fixDecoderSize(getBytesDecoder(), 64)],
+    ['aggregatedSignature', fixDecoderSize(getBytesDecoder(), 32)],
     [
       'operatorsSignatureBitmap',
       addDecoderSizePrefix(getBytesDecoder(), getU32Decoder()),
     ],
+    ['expectedGeneration', getU64Decoder()],
   ]);
 }
 
-export function getCastVoteInstructionDataCodec(): Codec<
-  CastVoteInstructionDataArgs,
-  CastVoteInstructionData
+export function getVerifyCertificateInstructionDataCodec(): Codec<
+  VerifyCertificateInstructionDataArgs,
+  VerifyCertificateInstructionData
 > {
   return combineCodec(
-    getCastVoteInstructionDataEncoder(),
-    getCastVoteInstructionDataDecoder()
+    getVerifyCertificateInstructionDataEncoder(),
+    getVerifyCertificateInstructionDataDecoder()
   );
 }
 
-export type CastVoteInput<
-  TAccountConfig extends string = string,
+export type VerifyCertificateInput<
+  TAccountNcnConfig extends string = string,
   TAccountNcn extends string = string,
   TAccountSnapshot extends string = string,
   TAccountRestakingConfig extends string = string,
-  TAccountVoteCounter extends string = string,
 > = {
-  config: Address<TAccountConfig>;
+  ncnConfig: Address<TAccountNcnConfig>;
   ncn: Address<TAccountNcn>;
   snapshot: Address<TAccountSnapshot>;
   restakingConfig: Address<TAccountRestakingConfig>;
-  voteCounter: Address<TAccountVoteCounter>;
-  aggregatedSignature: CastVoteInstructionDataArgs['aggregatedSignature'];
-  aggregatedG2: CastVoteInstructionDataArgs['aggregatedG2'];
-  operatorsSignatureBitmap: CastVoteInstructionDataArgs['operatorsSignatureBitmap'];
+  digest: VerifyCertificateInstructionDataArgs['digest'];
+  aggregatedG2: VerifyCertificateInstructionDataArgs['aggregatedG2'];
+  aggregatedSignature: VerifyCertificateInstructionDataArgs['aggregatedSignature'];
+  operatorsSignatureBitmap: VerifyCertificateInstructionDataArgs['operatorsSignatureBitmap'];
+  expectedGeneration: VerifyCertificateInstructionDataArgs['expectedGeneration'];
 };
 
-export function getCastVoteInstruction<
-  TAccountConfig extends string,
+export function getVerifyCertificateInstruction<
+  TAccountNcnConfig extends string,
   TAccountNcn extends string,
   TAccountSnapshot extends string,
   TAccountRestakingConfig extends string,
-  TAccountVoteCounter extends string,
   TProgramAddress extends Address = typeof NCN_PROGRAM_PROGRAM_ADDRESS,
 >(
-  input: CastVoteInput<
-    TAccountConfig,
+  input: VerifyCertificateInput<
+    TAccountNcnConfig,
     TAccountNcn,
     TAccountSnapshot,
-    TAccountRestakingConfig,
-    TAccountVoteCounter
+    TAccountRestakingConfig
   >,
   config?: { programAddress?: TProgramAddress }
-): CastVoteInstruction<
+): VerifyCertificateInstruction<
   TProgramAddress,
-  TAccountConfig,
+  TAccountNcnConfig,
   TAccountNcn,
   TAccountSnapshot,
-  TAccountRestakingConfig,
-  TAccountVoteCounter
+  TAccountRestakingConfig
 > {
   // Program address.
   const programAddress = config?.programAddress ?? NCN_PROGRAM_PROGRAM_ADDRESS;
 
   // Original accounts.
   const originalAccounts = {
-    config: { value: input.config ?? null, isWritable: false },
+    ncnConfig: { value: input.ncnConfig ?? null, isWritable: false },
     ncn: { value: input.ncn ?? null, isWritable: false },
     snapshot: { value: input.snapshot ?? null, isWritable: false },
     restakingConfig: {
       value: input.restakingConfig ?? null,
       isWritable: false,
     },
-    voteCounter: { value: input.voteCounter ?? null, isWritable: true },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
@@ -187,52 +188,49 @@ export function getCastVoteInstruction<
   const getAccountMeta = getAccountMetaFactory(programAddress, 'programId');
   const instruction = {
     accounts: [
-      getAccountMeta(accounts.config),
+      getAccountMeta(accounts.ncnConfig),
       getAccountMeta(accounts.ncn),
       getAccountMeta(accounts.snapshot),
       getAccountMeta(accounts.restakingConfig),
-      getAccountMeta(accounts.voteCounter),
     ],
     programAddress,
-    data: getCastVoteInstructionDataEncoder().encode(
-      args as CastVoteInstructionDataArgs
+    data: getVerifyCertificateInstructionDataEncoder().encode(
+      args as VerifyCertificateInstructionDataArgs
     ),
-  } as CastVoteInstruction<
+  } as VerifyCertificateInstruction<
     TProgramAddress,
-    TAccountConfig,
+    TAccountNcnConfig,
     TAccountNcn,
     TAccountSnapshot,
-    TAccountRestakingConfig,
-    TAccountVoteCounter
+    TAccountRestakingConfig
   >;
 
   return instruction;
 }
 
-export type ParsedCastVoteInstruction<
+export type ParsedVerifyCertificateInstruction<
   TProgram extends string = typeof NCN_PROGRAM_PROGRAM_ADDRESS,
   TAccountMetas extends readonly IAccountMeta[] = readonly IAccountMeta[],
 > = {
   programAddress: Address<TProgram>;
   accounts: {
-    config: TAccountMetas[0];
+    ncnConfig: TAccountMetas[0];
     ncn: TAccountMetas[1];
     snapshot: TAccountMetas[2];
     restakingConfig: TAccountMetas[3];
-    voteCounter: TAccountMetas[4];
   };
-  data: CastVoteInstructionData;
+  data: VerifyCertificateInstructionData;
 };
 
-export function parseCastVoteInstruction<
+export function parseVerifyCertificateInstruction<
   TProgram extends string,
   TAccountMetas extends readonly IAccountMeta[],
 >(
   instruction: IInstruction<TProgram> &
     IInstructionWithAccounts<TAccountMetas> &
     IInstructionWithData<Uint8Array>
-): ParsedCastVoteInstruction<TProgram, TAccountMetas> {
-  if (instruction.accounts.length < 5) {
+): ParsedVerifyCertificateInstruction<TProgram, TAccountMetas> {
+  if (instruction.accounts.length < 4) {
     // TODO: Coded error.
     throw new Error('Not enough accounts');
   }
@@ -245,12 +243,11 @@ export function parseCastVoteInstruction<
   return {
     programAddress: instruction.programAddress,
     accounts: {
-      config: getNextAccount(),
+      ncnConfig: getNextAccount(),
       ncn: getNextAccount(),
       snapshot: getNextAccount(),
       restakingConfig: getNextAccount(),
-      voteCounter: getNextAccount(),
     },
-    data: getCastVoteInstructionDataDecoder().decode(instruction.data),
+    data: getVerifyCertificateInstructionDataDecoder().decode(instruction.data),
   };
 }

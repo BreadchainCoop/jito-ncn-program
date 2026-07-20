@@ -33,6 +33,7 @@ use solana_program::{
 use solana_program_test::{BanksClient, BanksClientError, ProgramTestBanksClientExt};
 use solana_sdk::{
     commitment_config::CommitmentLevel,
+    hash::Hash,
     instruction::InstructionError,
     signature::{Keypair, Signer},
     transaction::{Transaction, TransactionError},
@@ -94,6 +95,18 @@ impl VaultProgramClient {
             banks_client,
             payer,
         }
+    }
+
+    /// Returns a recent blockhash guaranteed to differ from the last one this
+    /// client handed out, so every submitted transaction has a distinct
+    /// signature. See NCNProgramClient::fresh_blockhash for the full rationale
+    /// (solana-program-test's wall-clock PohService can otherwise let two
+    /// identical transactions share a blockhash, making the second a silent
+    /// duplicate).
+    /// Recent blockhash guaranteed distinct from the last one used by any
+    /// client in this test (see `crate::fixtures::fresh_blockhash`).
+    async fn fresh_blockhash(&mut self) -> Result<Hash, BanksClientError> {
+        crate::fixtures::fresh_blockhash(&mut self.banks_client).await
     }
 
     /// Configures a depositor for a given vault.
@@ -278,7 +291,7 @@ impl VaultProgramClient {
         program_fee_wallet: &Pubkey,
         program_fee_bps: u16,
     ) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[initialize_config(
                 &jito_vault_program::id(),
@@ -423,7 +436,7 @@ impl VaultProgramClient {
         admin: &Keypair,
         capacity: u64,
     ) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
 
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[set_deposit_capacity(
@@ -474,7 +487,7 @@ impl VaultProgramClient {
         vault_ncn_ticket: &Pubkey,
         ncn_vault_admin: &Keypair,
     ) -> TestResult<()> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
 
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[warmup_vault_ncn_ticket(
@@ -649,7 +662,7 @@ impl VaultProgramClient {
         vault_ncn_slasher_ticket: &Pubkey,
         admin: &Keypair,
     ) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
 
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[warmup_vault_ncn_slasher_ticket(
@@ -707,7 +720,7 @@ impl VaultProgramClient {
         decimals: u8,
         initialize_token_amount: u64,
     ) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
 
         let admin_st_token_account =
             get_associated_token_address(&vault_admin.pubkey(), &st_mint.pubkey());
@@ -768,7 +781,7 @@ impl VaultProgramClient {
         admin: &Keypair,
         payer: &Keypair,
     ) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
 
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[jito_vault_sdk::sdk::initialize_vault_ncn_ticket(
@@ -799,7 +812,7 @@ impl VaultProgramClient {
         admin: &Keypair,
         payer: &Keypair,
     ) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[jito_vault_sdk::sdk::initialize_vault_operator_delegation(
                 &jito_vault_program::id(),
@@ -829,7 +842,7 @@ impl VaultProgramClient {
         delegate: &Pubkey,
         token_program_id: &Pubkey,
     ) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[jito_vault_sdk::sdk::delegate_token_account(
                 &jito_vault_program::id(),
@@ -856,7 +869,7 @@ impl VaultProgramClient {
         old_admin: &Keypair,
         new_admin: &Keypair,
     ) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[jito_vault_sdk::sdk::set_admin(
                 &jito_vault_program::id(),
@@ -881,7 +894,7 @@ impl VaultProgramClient {
         new_admin: &Pubkey,
         role: VaultAdminRole,
     ) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[jito_vault_sdk::sdk::set_secondary_admin(
                 &jito_vault_program::id(),
@@ -908,7 +921,7 @@ impl VaultProgramClient {
         withdrawal_fee_bps: Option<u16>,
         reward_fee_bps: Option<u16>,
     ) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[jito_vault_sdk::sdk::set_fees(
                 &jito_vault_program::id(),
@@ -932,7 +945,7 @@ impl VaultProgramClient {
         config_admin: &Keypair,
         new_fee_bps: u16,
     ) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[jito_vault_sdk::sdk::set_program_fee(
                 &jito_vault_program::id(),
@@ -1024,7 +1037,7 @@ impl VaultProgramClient {
         admin: &Keypair,
         amount: u64,
     ) -> TestResult<()> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[cooldown_delegation(
                 &jito_vault_program::id(),
@@ -1130,7 +1143,7 @@ impl VaultProgramClient {
         vault_operator_delegation: &Pubkey,
         vault_update_state_tracker: &Pubkey,
     ) -> TestResult<()> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
 
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[jito_vault_sdk::sdk::crank_vault_update_state_tracker(
@@ -1150,7 +1163,7 @@ impl VaultProgramClient {
     }
 
     pub async fn update_vault_balance(&mut self, vault_pubkey: &Pubkey) -> TestResult<()> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
 
         let vault = self.get_vault(vault_pubkey).await?;
 
@@ -1178,7 +1191,7 @@ impl VaultProgramClient {
         vault_pubkey: &Pubkey,
         vault_update_state_tracker: &Pubkey,
     ) -> TestResult<()> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
 
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[jito_vault_sdk::sdk::initialize_vault_update_state_tracker(
@@ -1203,7 +1216,7 @@ impl VaultProgramClient {
         vault_update_state_tracker: &Pubkey,
         ncn_epoch: u64,
     ) -> TestResult<()> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
 
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[jito_vault_sdk::sdk::close_vault_update_state_tracker(
@@ -1233,7 +1246,7 @@ impl VaultProgramClient {
         base: &Keypair,
         amount: u64,
     ) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[jito_vault_sdk::sdk::enqueue_withdrawal(
                 &jito_vault_program::id(),
@@ -1300,7 +1313,7 @@ impl VaultProgramClient {
         vault_fee_token_account: &Pubkey,
         program_fee_vrt_token_account: &Pubkey,
     ) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[jito_vault_sdk::sdk::burn_withdrawal_ticket(
                 &jito_vault_program::id(),
@@ -1331,7 +1344,7 @@ impl VaultProgramClient {
         admin: &Keypair,
         amount: u64,
     ) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[add_delegation(
                 &jito_vault_program::id(),
@@ -1386,7 +1399,7 @@ impl VaultProgramClient {
         amount_in: u64,
         min_amount_out: u64,
     ) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         let mut signers = vec![depositor];
         if let Some(signer) = mint_signer {
             signers.push(signer);
@@ -1425,7 +1438,7 @@ impl VaultProgramClient {
         admin: &Keypair,
         payer: &Keypair,
     ) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[jito_vault_sdk::sdk::initialize_vault_ncn_slasher_ticket(
                 &jito_vault_program::id(),
@@ -1457,7 +1470,7 @@ impl VaultProgramClient {
         vault_ncn_slasher_operator_ticket: &Pubkey,
         payer: &Keypair,
     ) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[
                 jito_vault_sdk::sdk::initialize_vault_ncn_slasher_operator_ticket(
@@ -1491,7 +1504,7 @@ impl VaultProgramClient {
         symbol: String,
         uri: String,
     ) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
 
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[jito_vault_sdk::sdk::create_token_metadata(
@@ -1523,7 +1536,7 @@ impl VaultProgramClient {
         symbol: String,
         uri: String,
     ) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[jito_vault_sdk::sdk::update_token_metadata(
                 &jito_vault_program::id(),
@@ -1544,7 +1557,7 @@ impl VaultProgramClient {
 
     async fn _process_transaction(&mut self, tx: &Transaction) -> Result<(), TestError> {
         self.banks_client
-            .process_transaction_with_preflight_and_commitment(
+            .process_transaction_with_commitment(
                 tx.clone(),
                 CommitmentLevel::Processed,
             )
@@ -1553,14 +1566,14 @@ impl VaultProgramClient {
     }
 
     pub async fn airdrop(&mut self, to: &Pubkey, sol: f64) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         let new_blockhash = self
             .banks_client
             .get_new_latest_blockhash(&blockhash)
             .await
             .unwrap();
         self.banks_client
-            .process_transaction_with_preflight_and_commitment(
+            .process_transaction_with_commitment(
                 Transaction::new_signed_with_payer(
                     &[transfer(&self.payer.pubkey(), to, sol_to_lamports(sol))],
                     Some(&self.payer.pubkey()),
@@ -1578,7 +1591,7 @@ impl VaultProgramClient {
         mint: &Keypair,
         token_program_id: &Pubkey,
     ) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         let rent: Rent = self.banks_client.get_sysvar().await?;
         let ixs = vec![
             create_account(
@@ -1598,7 +1611,7 @@ impl VaultProgramClient {
             .unwrap(),
         ];
         self.banks_client
-            .process_transaction_with_preflight_and_commitment(
+            .process_transaction_with_commitment(
                 Transaction::new_signed_with_payer(
                     &ixs,
                     Some(&self.payer.pubkey()),
@@ -1612,9 +1625,9 @@ impl VaultProgramClient {
     }
 
     pub async fn create_ata(&mut self, mint: &Pubkey, owner: &Pubkey) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.banks_client
-            .process_transaction_with_preflight_and_commitment(
+            .process_transaction_with_commitment(
                 Transaction::new_signed_with_payer(
                     &[create_associated_token_account_idempotent(
                         &self.payer.pubkey(),
@@ -1639,9 +1652,9 @@ impl VaultProgramClient {
         to: &Pubkey,
         amount: u64,
     ) -> Result<(), BanksClientError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.banks_client
-            .process_transaction_with_preflight_and_commitment(
+            .process_transaction_with_commitment(
                 Transaction::new_signed_with_payer(
                     &[
                         create_associated_token_account_idempotent(
@@ -1704,9 +1717,9 @@ impl VaultProgramClient {
         let vault_token_account =
             get_associated_token_address(vault, &vault_account.supported_mint);
 
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self.banks_client
-            .process_transaction_with_preflight_and_commitment(
+            .process_transaction_with_commitment(
                 Transaction::new_signed_with_payer(
                     &[
                         create_associated_token_account_idempotent(
@@ -1740,7 +1753,7 @@ impl VaultProgramClient {
         program_fee_admin: &Keypair,
         new_fee_wallet: &Pubkey,
     ) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[jito_vault_sdk::sdk::set_program_fee_wallet(
                 &jito_vault_program::id(),
@@ -1762,7 +1775,7 @@ impl VaultProgramClient {
         admin: &Keypair,
         is_paused: bool,
     ) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[jito_vault_sdk::sdk::set_is_paused(
                 &jito_vault_program::id(),
@@ -1785,7 +1798,7 @@ impl VaultProgramClient {
         old_admin: &Keypair,
         new_admin: &Keypair,
     ) -> Result<(), TestError> {
-        let blockhash = self.banks_client.get_latest_blockhash().await?;
+        let blockhash = self.fresh_blockhash().await?;
         self._process_transaction(&Transaction::new_signed_with_payer(
             &[jito_vault_sdk::sdk::set_config_admin(
                 &jito_vault_program::id(),

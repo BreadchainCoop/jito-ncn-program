@@ -1,11 +1,7 @@
 #[cfg(test)]
 mod tests {
 
-    use ncn_program_core::{
-        g1_point::{G1CompressedPoint, G1Point},
-        g2_point::G2CompressedPoint,
-        schemes::Sha256Normalized,
-    };
+    use ncn_program_core::g1_point::{G1CompressedPoint, G1Point};
     use solana_sdk::msg;
 
     use crate::fixtures::{test_builder::TestBuilder, TestResult};

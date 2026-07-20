@@ -16,17 +16,17 @@ import {
   type ParsedAdminRegisterStMintInstruction,
   type ParsedAdminSetNewAdminInstruction,
   type ParsedAdminSetParametersInstruction,
-  type ParsedCastVoteInstruction,
   type ParsedInitializeConfigInstruction,
   type ParsedInitializeSnapshotInstruction,
   type ParsedInitializeVaultRegistryInstruction,
-  type ParsedInitializeVoteCounterInstruction,
   type ParsedReallocSnapshotInstruction,
   type ParsedRegisterOperatorInstruction,
   type ParsedRegisterVaultInstruction,
+  type ParsedRemoveOperatorInstruction,
   type ParsedSnapshotVaultOperatorDelegationInstruction,
   type ParsedUpdateOperatorBN128KeysInstruction,
   type ParsedUpdateOperatorIpPortInstruction,
+  type ParsedVerifyCertificateInstruction,
 } from '../instructions';
 
 export const NCN_PROGRAM_PROGRAM_ADDRESS =
@@ -37,7 +37,6 @@ export enum NcnProgramAccount {
   NCNOperatorAccount,
   Snapshot,
   VaultRegistry,
-  VoteCounter,
 }
 
 export enum NcnProgramInstruction {
@@ -46,12 +45,12 @@ export enum NcnProgramInstruction {
   RegisterVault,
   RegisterOperator,
   UpdateOperatorBN128Keys,
+  RemoveOperator,
   UpdateOperatorIpPort,
-  InitializeVoteCounter,
   InitializeSnapshot,
   ReallocSnapshot,
   SnapshotVaultOperatorDelegation,
-  CastVote,
+  VerifyCertificate,
   AdminSetParameters,
   AdminSetNewAdmin,
   AdminRegisterStMint,
@@ -77,10 +76,10 @@ export function identifyNcnProgramInstruction(
     return NcnProgramInstruction.UpdateOperatorBN128Keys;
   }
   if (containsBytes(data, getU8Encoder().encode(5), 0)) {
-    return NcnProgramInstruction.UpdateOperatorIpPort;
+    return NcnProgramInstruction.RemoveOperator;
   }
   if (containsBytes(data, getU8Encoder().encode(6), 0)) {
-    return NcnProgramInstruction.InitializeVoteCounter;
+    return NcnProgramInstruction.UpdateOperatorIpPort;
   }
   if (containsBytes(data, getU8Encoder().encode(7), 0)) {
     return NcnProgramInstruction.InitializeSnapshot;
@@ -92,7 +91,7 @@ export function identifyNcnProgramInstruction(
     return NcnProgramInstruction.SnapshotVaultOperatorDelegation;
   }
   if (containsBytes(data, getU8Encoder().encode(10), 0)) {
-    return NcnProgramInstruction.CastVote;
+    return NcnProgramInstruction.VerifyCertificate;
   }
   if (containsBytes(data, getU8Encoder().encode(11), 0)) {
     return NcnProgramInstruction.AdminSetParameters;
@@ -127,11 +126,11 @@ export type ParsedNcnProgramInstruction<
       instructionType: NcnProgramInstruction.UpdateOperatorBN128Keys;
     } & ParsedUpdateOperatorBN128KeysInstruction<TProgram>)
   | ({
+      instructionType: NcnProgramInstruction.RemoveOperator;
+    } & ParsedRemoveOperatorInstruction<TProgram>)
+  | ({
       instructionType: NcnProgramInstruction.UpdateOperatorIpPort;
     } & ParsedUpdateOperatorIpPortInstruction<TProgram>)
-  | ({
-      instructionType: NcnProgramInstruction.InitializeVoteCounter;
-    } & ParsedInitializeVoteCounterInstruction<TProgram>)
   | ({
       instructionType: NcnProgramInstruction.InitializeSnapshot;
     } & ParsedInitializeSnapshotInstruction<TProgram>)
@@ -142,8 +141,8 @@ export type ParsedNcnProgramInstruction<
       instructionType: NcnProgramInstruction.SnapshotVaultOperatorDelegation;
     } & ParsedSnapshotVaultOperatorDelegationInstruction<TProgram>)
   | ({
-      instructionType: NcnProgramInstruction.CastVote;
-    } & ParsedCastVoteInstruction<TProgram>)
+      instructionType: NcnProgramInstruction.VerifyCertificate;
+    } & ParsedVerifyCertificateInstruction<TProgram>)
   | ({
       instructionType: NcnProgramInstruction.AdminSetParameters;
     } & ParsedAdminSetParametersInstruction<TProgram>)

@@ -236,6 +236,16 @@ pub enum NCNProgramError {
     NoOperatorsRegistered,
     #[error("Invalid operator count")]
     InvalidOperatorCount,
+    #[error("Invalid consensus threshold bps")]
+    InvalidConsensusThresholdBps,
+    #[error("Snapshot generation mismatch")]
+    SnapshotGenerationMismatch,
+    #[error("Insufficient signed stake bps for consensus threshold")]
+    InsufficientStakeBps,
+    #[error("Cannot remove operator: signer is not authorized")]
+    CannotRemoveOperator,
+    #[error("Invalid weight bps")]
+    InvalidWeightBps,
 }
 
 impl<T> DecodeError<T> for NCNProgramError {

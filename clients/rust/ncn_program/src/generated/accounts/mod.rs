@@ -9,10 +9,8 @@ pub(crate) mod r#config;
 pub(crate) mod r#n_c_n_operator_account;
 pub(crate) mod r#snapshot;
 pub(crate) mod r#vault_registry;
-pub(crate) mod r#vote_counter;
 
 pub use self::r#config::*;
 pub use self::r#n_c_n_operator_account::*;
 pub use self::r#snapshot::*;
 pub use self::r#vault_registry::*;
-pub use self::r#vote_counter::*;

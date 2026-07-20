@@ -12,6 +12,7 @@ pub(crate) mod r#fees;
 pub(crate) mod r#operator_snapshot;
 pub(crate) mod r#st_mint_entry;
 pub(crate) mod r#stake_weights;
+pub(crate) mod r#vault_contribution;
 pub(crate) mod r#vault_entry;
 pub(crate) mod r#vault_operator_stake_weight;
 
@@ -22,5 +23,6 @@ pub use self::r#fees::*;
 pub use self::r#operator_snapshot::*;
 pub use self::r#st_mint_entry::*;
 pub use self::r#stake_weights::*;
+pub use self::r#vault_contribution::*;
 pub use self::r#vault_entry::*;
 pub use self::r#vault_operator_stake_weight::*;

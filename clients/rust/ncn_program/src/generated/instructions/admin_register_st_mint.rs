@@ -22,12 +22,16 @@ pub struct AdminRegisterStMint {
 }
 
 impl AdminRegisterStMint {
-    pub fn instruction(&self) -> solana_program::instruction::Instruction {
-        self.instruction_with_remaining_accounts(&[])
+    pub fn instruction(
+        &self,
+        args: AdminRegisterStMintInstructionArgs,
+    ) -> solana_program::instruction::Instruction {
+        self.instruction_with_remaining_accounts(args, &[])
     }
     #[allow(clippy::vec_init_then_push)]
     pub fn instruction_with_remaining_accounts(
         &self,
+        args: AdminRegisterStMintInstructionArgs,
         remaining_accounts: &[solana_program::instruction::AccountMeta],
     ) -> solana_program::instruction::Instruction {
         let mut accounts = Vec::with_capacity(5 + remaining_accounts.len());
@@ -50,9 +54,11 @@ impl AdminRegisterStMint {
             self.admin, true,
         ));
         accounts.extend_from_slice(remaining_accounts);
-        let data = AdminRegisterStMintInstructionData::new()
+        let mut data = AdminRegisterStMintInstructionData::new()
             .try_to_vec()
             .unwrap();
+        let mut args = args.try_to_vec().unwrap();
+        data.append(&mut args);
 
         solana_program::instruction::Instruction {
             program_id: crate::NCN_PROGRAM_ID,
@@ -79,6 +85,12 @@ impl Default for AdminRegisterStMintInstructionData {
     }
 }
 
+#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct AdminRegisterStMintInstructionArgs {
+    pub weight_bps: u16,
+}
+
 /// Instruction builder for `AdminRegisterStMint`.
 ///
 /// ### Accounts:
@@ -95,6 +107,7 @@ pub struct AdminRegisterStMintBuilder {
     st_mint: Option<solana_program::pubkey::Pubkey>,
     vault_registry: Option<solana_program::pubkey::Pubkey>,
     admin: Option<solana_program::pubkey::Pubkey>,
+    weight_bps: Option<u16>,
     __remaining_accounts: Vec<solana_program::instruction::AccountMeta>,
 }
 
@@ -127,6 +140,11 @@ impl AdminRegisterStMintBuilder {
         self.admin = Some(admin);
         self
     }
+    #[inline(always)]
+    pub fn weight_bps(&mut self, weight_bps: u16) -> &mut Self {
+        self.weight_bps = Some(weight_bps);
+        self
+    }
     /// Add an additional account to the instruction.
     #[inline(always)]
     pub fn add_remaining_account(
@@ -154,8 +172,11 @@ impl AdminRegisterStMintBuilder {
             vault_registry: self.vault_registry.expect("vault_registry is not set"),
             admin: self.admin.expect("admin is not set"),
         };
+        let args = AdminRegisterStMintInstructionArgs {
+            weight_bps: self.weight_bps.clone().expect("weight_bps is not set"),
+        };
 
-        accounts.instruction_with_remaining_accounts(&self.__remaining_accounts)
+        accounts.instruction_with_remaining_accounts(args, &self.__remaining_accounts)
     }
 }
 
@@ -186,12 +207,15 @@ pub struct AdminRegisterStMintCpi<'a, 'b> {
     pub vault_registry: &'b solana_program::account_info::AccountInfo<'a>,
 
     pub admin: &'b solana_program::account_info::AccountInfo<'a>,
+    /// The arguments for the instruction.
+    pub __args: AdminRegisterStMintInstructionArgs,
 }
 
 impl<'a, 'b> AdminRegisterStMintCpi<'a, 'b> {
     pub fn new(
         program: &'b solana_program::account_info::AccountInfo<'a>,
         accounts: AdminRegisterStMintCpiAccounts<'a, 'b>,
+        args: AdminRegisterStMintInstructionArgs,
     ) -> Self {
         Self {
             __program: program,
@@ -200,6 +224,7 @@ impl<'a, 'b> AdminRegisterStMintCpi<'a, 'b> {
             st_mint: accounts.st_mint,
             vault_registry: accounts.vault_registry,
             admin: accounts.admin,
+            __args: args,
         }
     }
     #[inline(always)]
@@ -263,9 +288,11 @@ impl<'a, 'b> AdminRegisterStMintCpi<'a, 'b> {
                 is_writable: remaining_account.2,
             })
         });
-        let data = AdminRegisterStMintInstructionData::new()
+        let mut data = AdminRegisterStMintInstructionData::new()
             .try_to_vec()
             .unwrap();
+        let mut args = self.__args.try_to_vec().unwrap();
+        data.append(&mut args);
 
         let instruction = solana_program::instruction::Instruction {
             program_id: crate::NCN_PROGRAM_ID,
@@ -314,6 +341,7 @@ impl<'a, 'b> AdminRegisterStMintCpiBuilder<'a, 'b> {
             st_mint: None,
             vault_registry: None,
             admin: None,
+            weight_bps: None,
             __remaining_accounts: Vec::new(),
         });
         Self { instruction }
@@ -350,6 +378,11 @@ impl<'a, 'b> AdminRegisterStMintCpiBuilder<'a, 'b> {
     #[inline(always)]
     pub fn admin(&mut self, admin: &'b solana_program::account_info::AccountInfo<'a>) -> &mut Self {
         self.instruction.admin = Some(admin);
+        self
+    }
+    #[inline(always)]
+    pub fn weight_bps(&mut self, weight_bps: u16) -> &mut Self {
+        self.instruction.weight_bps = Some(weight_bps);
         self
     }
     /// Add an additional account to the instruction.
@@ -393,6 +426,13 @@ impl<'a, 'b> AdminRegisterStMintCpiBuilder<'a, 'b> {
         &self,
         signers_seeds: &[&[&[u8]]],
     ) -> solana_program::entrypoint::ProgramResult {
+        let args = AdminRegisterStMintInstructionArgs {
+            weight_bps: self
+                .instruction
+                .weight_bps
+                .clone()
+                .expect("weight_bps is not set"),
+        };
         let instruction = AdminRegisterStMintCpi {
             __program: self.instruction.__program,
 
@@ -408,6 +448,7 @@ impl<'a, 'b> AdminRegisterStMintCpiBuilder<'a, 'b> {
                 .expect("vault_registry is not set"),
 
             admin: self.instruction.admin.expect("admin is not set"),
+            __args: args,
         };
         instruction.invoke_signed_with_remaining_accounts(
             signers_seeds,
@@ -424,6 +465,7 @@ struct AdminRegisterStMintCpiBuilderInstruction<'a, 'b> {
     st_mint: Option<&'b solana_program::account_info::AccountInfo<'a>>,
     vault_registry: Option<&'b solana_program::account_info::AccountInfo<'a>>,
     admin: Option<&'b solana_program::account_info::AccountInfo<'a>>,
+    weight_bps: Option<u16>,
     /// Additional instruction accounts `(AccountInfo, is_writable, is_signer)`.
     __remaining_accounts: Vec<(
         &'b solana_program::account_info::AccountInfo<'a>,

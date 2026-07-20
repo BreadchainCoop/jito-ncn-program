@@ -244,6 +244,16 @@ export const NCN_PROGRAM_ERROR__N_C_N_OPERATOR_ACCOUNT_DOSENT_EXIST = 0x2263; //
 export const NCN_PROGRAM_ERROR__NO_OPERATORS_REGISTERED = 0x2264; // 8804
 /** InvalidOperatorCount: Invalid operator count */
 export const NCN_PROGRAM_ERROR__INVALID_OPERATOR_COUNT = 0x2265; // 8805
+/** InvalidConsensusThresholdBps: Invalid consensus threshold bps */
+export const NCN_PROGRAM_ERROR__INVALID_CONSENSUS_THRESHOLD_BPS = 0x2266; // 8806
+/** SnapshotGenerationMismatch: Snapshot generation mismatch */
+export const NCN_PROGRAM_ERROR__SNAPSHOT_GENERATION_MISMATCH = 0x2267; // 8807
+/** InsufficientStakeBps: Insufficient signed stake bps for consensus threshold */
+export const NCN_PROGRAM_ERROR__INSUFFICIENT_STAKE_BPS = 0x2268; // 8808
+/** CannotRemoveOperator: Cannot remove operator: signer is not authorized */
+export const NCN_PROGRAM_ERROR__CANNOT_REMOVE_OPERATOR = 0x2269; // 8809
+/** InvalidWeightBps: Invalid weight bps */
+export const NCN_PROGRAM_ERROR__INVALID_WEIGHT_BPS = 0x226a; // 8810
 
 export type NcnProgramError =
   | typeof NCN_PROGRAM_ERROR__ACCOUNT_ALREADY_INITIALIZED
@@ -266,6 +276,7 @@ export type NcnProgramError =
   | typeof NCN_PROGRAM_ERROR__CANNOT_CLOSE_ACCOUNT_NOT_ENOUGH_EPOCHS
   | typeof NCN_PROGRAM_ERROR__CANNOT_CLOSE_EPOCH_STATE_ACCOUNT
   | typeof NCN_PROGRAM_ERROR__CANNOT_CREATE_FUTURE_WEIGHT_TABLES
+  | typeof NCN_PROGRAM_ERROR__CANNOT_REMOVE_OPERATOR
   | typeof NCN_PROGRAM_ERROR__CANNOT_VOTE_WITH_ZERO_STAKE
   | typeof NCN_PROGRAM_ERROR__CAST_TO_IMPRECISE_NUMBER_ERROR
   | typeof NCN_PROGRAM_ERROR__CAST_TO_U128_ERROR
@@ -295,9 +306,11 @@ export type NcnProgramError =
   | typeof NCN_PROGRAM_ERROR__INCORRECT_NCN
   | typeof NCN_PROGRAM_ERROR__INCORRECT_NCN_ADMIN
   | typeof NCN_PROGRAM_ERROR__INCORRECT_WEIGHT_TABLE_ADMIN
+  | typeof NCN_PROGRAM_ERROR__INSUFFICIENT_STAKE_BPS
   | typeof NCN_PROGRAM_ERROR__INVALID_ACCOUNT_STATUS
   | typeof NCN_PROGRAM_ERROR__INVALID_ACCOUNT_TO_CLOSE_DISCRIMINATOR
   | typeof NCN_PROGRAM_ERROR__INVALID_BASE_FEE_GROUP
+  | typeof NCN_PROGRAM_ERROR__INVALID_CONSENSUS_THRESHOLD_BPS
   | typeof NCN_PROGRAM_ERROR__INVALID_EPOCHS_BEFORE_CLOSE
   | typeof NCN_PROGRAM_ERROR__INVALID_EPOCHS_BEFORE_STALL
   | typeof NCN_PROGRAM_ERROR__INVALID_G1_PUBKEY
@@ -310,6 +323,7 @@ export type NcnProgramError =
   | typeof NCN_PROGRAM_ERROR__INVALID_OPERATOR_COUNT
   | typeof NCN_PROGRAM_ERROR__INVALID_OPERATOR_VOTER
   | typeof NCN_PROGRAM_ERROR__INVALID_SLOTS_AFTER_CONSENSUS
+  | typeof NCN_PROGRAM_ERROR__INVALID_WEIGHT_BPS
   | typeof NCN_PROGRAM_ERROR__MARKER_EXISTS
   | typeof NCN_PROGRAM_ERROR__MINT_ENTRY_NOT_FOUND
   | typeof NCN_PROGRAM_ERROR__MINT_IN_TABLE
@@ -339,6 +353,7 @@ export type NcnProgramError =
   | typeof NCN_PROGRAM_ERROR__SERIALIZATION_ERROR
   | typeof NCN_PROGRAM_ERROR__SIGNATURE_VERIFICATION_FAILED
   | typeof NCN_PROGRAM_ERROR__SNAPSHOT_ALREADY_FINALIZED
+  | typeof NCN_PROGRAM_ERROR__SNAPSHOT_GENERATION_MISMATCH
   | typeof NCN_PROGRAM_ERROR__SNAPSHOT_NOT_FINALIZED
   | typeof NCN_PROGRAM_ERROR__TABLE_NOT_INITIALIZED
   | typeof NCN_PROGRAM_ERROR__TIE_BREAKER_ADMIN_INVALID
@@ -385,6 +400,7 @@ if (process.env.NODE_ENV !== 'production') {
     [NCN_PROGRAM_ERROR__CANNOT_CLOSE_ACCOUNT_NOT_ENOUGH_EPOCHS]: `Cannot close account - Not enough epochs have passed since consensus reached`,
     [NCN_PROGRAM_ERROR__CANNOT_CLOSE_EPOCH_STATE_ACCOUNT]: `Cannot close epoch state account - Epoch state needs all other accounts to be closed first`,
     [NCN_PROGRAM_ERROR__CANNOT_CREATE_FUTURE_WEIGHT_TABLES]: `Cannnot create future weight tables`,
+    [NCN_PROGRAM_ERROR__CANNOT_REMOVE_OPERATOR]: `Cannot remove operator: signer is not authorized`,
     [NCN_PROGRAM_ERROR__CANNOT_VOTE_WITH_ZERO_STAKE]: `Cannot Vote With Zero Delegation`,
     [NCN_PROGRAM_ERROR__CAST_TO_IMPRECISE_NUMBER_ERROR]: `Cast to imprecise number error`,
     [NCN_PROGRAM_ERROR__CAST_TO_U128_ERROR]: `Cast to u128 error`,
@@ -414,9 +430,11 @@ if (process.env.NODE_ENV !== 'production') {
     [NCN_PROGRAM_ERROR__INCORRECT_NCN]: `Incorrect NCN`,
     [NCN_PROGRAM_ERROR__INCORRECT_NCN_ADMIN]: `Incorrect NCN Admin`,
     [NCN_PROGRAM_ERROR__INCORRECT_WEIGHT_TABLE_ADMIN]: `Incorrect weight table admin`,
+    [NCN_PROGRAM_ERROR__INSUFFICIENT_STAKE_BPS]: `Insufficient signed stake bps for consensus threshold`,
     [NCN_PROGRAM_ERROR__INVALID_ACCOUNT_STATUS]: `Invalid Account Status`,
     [NCN_PROGRAM_ERROR__INVALID_ACCOUNT_TO_CLOSE_DISCRIMINATOR]: `Invalid account_to_close Discriminator`,
     [NCN_PROGRAM_ERROR__INVALID_BASE_FEE_GROUP]: `Not a valid base fee group`,
+    [NCN_PROGRAM_ERROR__INVALID_CONSENSUS_THRESHOLD_BPS]: `Invalid consensus threshold bps`,
     [NCN_PROGRAM_ERROR__INVALID_EPOCHS_BEFORE_CLOSE]: `Invalid epochs before accounts can close`,
     [NCN_PROGRAM_ERROR__INVALID_EPOCHS_BEFORE_STALL]: `Invalid epochs before stall`,
     [NCN_PROGRAM_ERROR__INVALID_G1_PUBKEY]: `Invalid G1 Pubkey`,
@@ -429,6 +447,7 @@ if (process.env.NODE_ENV !== 'production') {
     [NCN_PROGRAM_ERROR__INVALID_OPERATOR_COUNT]: `Invalid operator count`,
     [NCN_PROGRAM_ERROR__INVALID_OPERATOR_VOTER]: `Operator voter needs to sign its vote`,
     [NCN_PROGRAM_ERROR__INVALID_SLOTS_AFTER_CONSENSUS]: `Invalid slots after consensus`,
+    [NCN_PROGRAM_ERROR__INVALID_WEIGHT_BPS]: `Invalid weight bps`,
     [NCN_PROGRAM_ERROR__MARKER_EXISTS]: `Marker exists`,
     [NCN_PROGRAM_ERROR__MINT_ENTRY_NOT_FOUND]: `Mint Entry not found`,
     [NCN_PROGRAM_ERROR__MINT_IN_TABLE]: `Mint is already in the table`,
@@ -458,6 +477,7 @@ if (process.env.NODE_ENV !== 'production') {
     [NCN_PROGRAM_ERROR__SERIALIZATION_ERROR]: `Serialization error`,
     [NCN_PROGRAM_ERROR__SIGNATURE_VERIFICATION_FAILED]: `Signature verification failed`,
     [NCN_PROGRAM_ERROR__SNAPSHOT_ALREADY_FINALIZED]: `snapshot already finalized`,
+    [NCN_PROGRAM_ERROR__SNAPSHOT_GENERATION_MISMATCH]: `Snapshot generation mismatch`,
     [NCN_PROGRAM_ERROR__SNAPSHOT_NOT_FINALIZED]: `Snapshot not finalized`,
     [NCN_PROGRAM_ERROR__TABLE_NOT_INITIALIZED]: `Table not initialized`,
     [NCN_PROGRAM_ERROR__TIE_BREAKER_ADMIN_INVALID]: `Tie breaker admin invalid`,

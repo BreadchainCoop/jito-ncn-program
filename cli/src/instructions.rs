@@ -31,17 +31,17 @@ use log::info;
 use ncn_program_client::{
     instructions::{
         AdminRegisterStMintBuilder, AdminSetNewAdminBuilder, AdminSetParametersBuilder,
-        CastVoteBuilder, InitializeConfigBuilder as InitializeNCNProgramConfigBuilder,
-        InitializeSnapshotBuilder, InitializeVaultRegistryBuilder, InitializeVoteCounterBuilder,
-        ReallocSnapshotBuilder, RegisterOperatorBuilder, RegisterVaultBuilder,
-        SnapshotVaultOperatorDelegationBuilder, UpdateOperatorIpPortBuilder,
+        InitializeConfigBuilder as InitializeNCNProgramConfigBuilder, InitializeSnapshotBuilder,
+        InitializeVaultRegistryBuilder, ReallocSnapshotBuilder, RegisterOperatorBuilder,
+        RegisterVaultBuilder, RemoveOperatorBuilder, SnapshotVaultOperatorDelegationBuilder,
+        UpdateOperatorIpPortBuilder, VerifyCertificateBuilder,
     },
     types::ConfigAdminRole,
 };
 use ncn_program_core::{
     account_payer::AccountPayer, config::Config as NCNProgramConfig, constants::MAX_REALLOC_BYTES,
     ncn_operator_account::NCNOperatorAccount, snapshot::Snapshot, utils::get_epoch,
-    vault_registry::VaultRegistry, vote_counter::VoteCounter,
+    vault_registry::VaultRegistry,
 };
 use solana_client::rpc_config::RpcSendTransactionConfig;
 
@@ -127,7 +127,11 @@ pub async fn admin_create_config(
     Ok(())
 }
 
-pub async fn admin_register_st_mint(handler: &CliHandler, vault: &Pubkey) -> Result<()> {
+pub async fn admin_register_st_mint(
+    handler: &CliHandler,
+    vault: &Pubkey,
+    weight_bps: u16,
+) -> Result<()> {
     let keypair = handler.keypair()?;
 
     let ncn = *handler.ncn()?;
@@ -145,7 +149,8 @@ pub async fn admin_register_st_mint(handler: &CliHandler, vault: &Pubkey) -> Res
         .admin(keypair.pubkey())
         .vault_registry(vault_registry)
         .ncn(ncn)
-        .st_mint(vault_account.supported_mint);
+        .st_mint(vault_account.supported_mint)
+        .weight_bps(weight_bps);
 
     let register_st_mint_ix = register_st_mint_builder.instruction();
 
@@ -157,6 +162,7 @@ pub async fn admin_register_st_mint(handler: &CliHandler, vault: &Pubkey) -> Res
         &[
             format!("NCN: {:?}", ncn),
             format!("ST Mint: {:?}", vault_account.supported_mint),
+            format!("Weight (bps): {}", weight_bps),
         ],
     )
     .await?;
@@ -285,42 +291,6 @@ pub async fn admin_fund_account_payer(handler: &CliHandler, amount: f64) -> Resu
 // --------------------- NCN Program ------------------------------
 
 // ----------------------- Keeper ---------------------------------
-
-pub async fn create_vote_counter(handler: &CliHandler) -> Result<()> {
-    let ncn = *handler.ncn()?;
-
-    let (config, _, _) = NCNProgramConfig::find_program_address(&handler.ncn_program_id, &ncn);
-
-    let (vote_counter, _, _) = VoteCounter::find_program_address(&handler.ncn_program_id, &ncn);
-
-    let (account_payer, _, _) = AccountPayer::find_program_address(&handler.ncn_program_id, &ncn);
-
-    let vote_counter_account = get_account(handler, &vote_counter).await?;
-
-    // Skip if vote counter already exists
-    if vote_counter_account.is_none() {
-        let initialize_vote_counter_ix = InitializeVoteCounterBuilder::new()
-            .config(config)
-            .vote_counter(vote_counter)
-            .ncn(ncn)
-            .account_payer(account_payer)
-            .system_program(system_program::id())
-            .instruction();
-
-        send_and_log_transaction(
-            handler,
-            &[initialize_vote_counter_ix],
-            &[],
-            "Created Vote Counter",
-            &[format!("NCN: {:?}", ncn)],
-        )
-        .await?;
-    } else {
-        info!("Vote counter already exists for NCN: {:?}", ncn);
-    }
-
-    Ok(())
-}
 
 pub async fn create_vault_registry(handler: &CliHandler) -> Result<()> {
     let ncn = *handler.ncn()?;
@@ -637,6 +607,8 @@ pub async fn snapshot_vault_operator_delegation(
 
     let (snapshot, _, _) = Snapshot::find_program_address(&handler.ncn_program_id, &ncn);
 
+    let (vault_registry, _, _) = VaultRegistry::find_program_address(&handler.ncn_program_id, &ncn);
+
     let snapshot_vault_operator_delegation_ix = SnapshotVaultOperatorDelegationBuilder::new()
         .restaking_config(restaking_config)
         .config(config)
@@ -648,6 +620,7 @@ pub async fn snapshot_vault_operator_delegation(
         .ncn_vault_ticket(ncn_vault_ticket)
         .vault_operator_delegation(vault_operator_delegation)
         .snapshot(snapshot)
+        .vault_registry(vault_registry)
         .instruction();
 
     send_and_log_transaction(
@@ -669,45 +642,79 @@ pub async fn snapshot_vault_operator_delegation(
 
 // --------------------- operator ------------------------------
 
-pub async fn cast_vote(
+/// Removes an operator from the snapshot: tombstones its index, subtracts its
+/// G1 key from the running APK, and bumps the snapshot generation. The CLI
+/// keypair must be the NCN admin or the operator's admin.
+pub async fn remove_operator(handler: &CliHandler, operator: &Pubkey) -> Result<()> {
+    let keypair = handler.keypair()?;
+    let ncn = *handler.ncn()?;
+    let operator = *operator;
+
+    let (config, _, _) = NCNProgramConfig::find_program_address(&handler.ncn_program_id, &ncn);
+
+    let (snapshot, _, _) = Snapshot::find_program_address(&handler.ncn_program_id, &ncn);
+
+    let remove_operator_ix = RemoveOperatorBuilder::new()
+        .config(config)
+        .ncn(ncn)
+        .operator(operator)
+        .admin(keypair.pubkey())
+        .snapshot(snapshot)
+        .instruction();
+
+    send_and_log_transaction(
+        handler,
+        &[remove_operator_ix],
+        &[],
+        "Removed Operator",
+        &[
+            format!("NCN: {:?}", ncn),
+            format!("Operator: {:?}", operator),
+        ],
+    )
+    .await?;
+
+    Ok(())
+}
+
+pub async fn verify_certificate(
     handler: &CliHandler,
-    epoch: u64,
+    digest: [u8; 32],
     agg_sig: [u8; 32],
     apk2: [u8; 64],
     signers_bitmap: Vec<u8>,
-    message: [u8; 32],
+    expected_generation: u64,
 ) -> Result<()> {
     let ncn = *handler.ncn()?;
 
-    let (config, _, _) = NCNProgramConfig::find_program_address(&handler.ncn_program_id, &ncn);
+    let (ncn_config, _, _) = NCNProgramConfig::find_program_address(&handler.ncn_program_id, &ncn);
 
     let (snapshot, _, _) = Snapshot::find_program_address(&handler.ncn_program_id, &ncn);
 
     let (restaking_config, _, _) =
         RestakingConfig::find_program_address(&handler.restaking_program_id);
 
-    let (vote_counter, _, _) = VoteCounter::find_program_address(&handler.ncn_program_id, &ncn);
-
-    let cast_vote_ix = CastVoteBuilder::new()
-        .config(config)
+    let verify_certificate_ix = VerifyCertificateBuilder::new()
+        .ncn_config(ncn_config)
         .ncn(ncn)
         .snapshot(snapshot)
         .restaking_config(restaking_config)
-        .vote_counter(vote_counter)
-        .aggregated_signature(agg_sig)
+        .digest(digest)
         .aggregated_g2(apk2)
+        .aggregated_signature(agg_sig)
         .operators_signature_bitmap(signers_bitmap)
+        .expected_generation(expected_generation)
         .instruction();
 
     send_and_log_transaction(
         handler,
-        &[cast_vote_ix],
+        &[verify_certificate_ix],
         &[],
-        "Cast Vote",
+        "Verify Certificate",
         &[
             format!("NCN: {:?}", ncn),
-            format!("Epoch: {:?}", epoch),
-            format!("Message: {}", hex::encode(message)),
+            format!("Digest: {}", hex::encode(digest)),
+            format!("Expected Generation: {}", expected_generation),
         ],
     )
     .await?;

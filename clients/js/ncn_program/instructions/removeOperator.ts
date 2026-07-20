@@ -10,8 +10,6 @@ import {
   combineCodec,
   getStructDecoder,
   getStructEncoder,
-  getU16Decoder,
-  getU16Encoder,
   getU8Decoder,
   getU8Encoder,
   transformEncoder,
@@ -25,26 +23,26 @@ import {
   type IInstructionWithAccounts,
   type IInstructionWithData,
   type ReadonlyAccount,
+  type ReadonlySignerAccount,
   type TransactionSigner,
   type WritableAccount,
-  type WritableSignerAccount,
 } from '@solana/web3.js';
 import { NCN_PROGRAM_PROGRAM_ADDRESS } from '../programs';
 import { getAccountMetaFactory, type ResolvedAccount } from '../shared';
 
-export const ADMIN_REGISTER_ST_MINT_DISCRIMINATOR = 13;
+export const REMOVE_OPERATOR_DISCRIMINATOR = 5;
 
-export function getAdminRegisterStMintDiscriminatorBytes() {
-  return getU8Encoder().encode(ADMIN_REGISTER_ST_MINT_DISCRIMINATOR);
+export function getRemoveOperatorDiscriminatorBytes() {
+  return getU8Encoder().encode(REMOVE_OPERATOR_DISCRIMINATOR);
 }
 
-export type AdminRegisterStMintInstruction<
+export type RemoveOperatorInstruction<
   TProgram extends string = typeof NCN_PROGRAM_PROGRAM_ADDRESS,
   TAccountConfig extends string | IAccountMeta<string> = string,
   TAccountNcn extends string | IAccountMeta<string> = string,
-  TAccountStMint extends string | IAccountMeta<string> = string,
-  TAccountVaultRegistry extends string | IAccountMeta<string> = string,
+  TAccountOperator extends string | IAccountMeta<string> = string,
   TAccountAdmin extends string | IAccountMeta<string> = string,
+  TAccountSnapshot extends string | IAccountMeta<string> = string,
   TRemainingAccounts extends readonly IAccountMeta<string>[] = [],
 > = IInstruction<TProgram> &
   IInstructionWithData<Uint8Array> &
@@ -54,95 +52,82 @@ export type AdminRegisterStMintInstruction<
         ? ReadonlyAccount<TAccountConfig>
         : TAccountConfig,
       TAccountNcn extends string ? ReadonlyAccount<TAccountNcn> : TAccountNcn,
-      TAccountStMint extends string
-        ? ReadonlyAccount<TAccountStMint>
-        : TAccountStMint,
-      TAccountVaultRegistry extends string
-        ? WritableAccount<TAccountVaultRegistry>
-        : TAccountVaultRegistry,
+      TAccountOperator extends string
+        ? ReadonlyAccount<TAccountOperator>
+        : TAccountOperator,
       TAccountAdmin extends string
-        ? WritableSignerAccount<TAccountAdmin> &
+        ? ReadonlySignerAccount<TAccountAdmin> &
             IAccountSignerMeta<TAccountAdmin>
         : TAccountAdmin,
+      TAccountSnapshot extends string
+        ? WritableAccount<TAccountSnapshot>
+        : TAccountSnapshot,
       ...TRemainingAccounts,
     ]
   >;
 
-export type AdminRegisterStMintInstructionData = {
-  discriminator: number;
-  weightBps: number;
-};
+export type RemoveOperatorInstructionData = { discriminator: number };
 
-export type AdminRegisterStMintInstructionDataArgs = { weightBps: number };
+export type RemoveOperatorInstructionDataArgs = {};
 
-export function getAdminRegisterStMintInstructionDataEncoder(): Encoder<AdminRegisterStMintInstructionDataArgs> {
+export function getRemoveOperatorInstructionDataEncoder(): Encoder<RemoveOperatorInstructionDataArgs> {
   return transformEncoder(
-    getStructEncoder([
-      ['discriminator', getU8Encoder()],
-      ['weightBps', getU16Encoder()],
-    ]),
-    (value) => ({
-      ...value,
-      discriminator: ADMIN_REGISTER_ST_MINT_DISCRIMINATOR,
-    })
+    getStructEncoder([['discriminator', getU8Encoder()]]),
+    (value) => ({ ...value, discriminator: REMOVE_OPERATOR_DISCRIMINATOR })
   );
 }
 
-export function getAdminRegisterStMintInstructionDataDecoder(): Decoder<AdminRegisterStMintInstructionData> {
-  return getStructDecoder([
-    ['discriminator', getU8Decoder()],
-    ['weightBps', getU16Decoder()],
-  ]);
+export function getRemoveOperatorInstructionDataDecoder(): Decoder<RemoveOperatorInstructionData> {
+  return getStructDecoder([['discriminator', getU8Decoder()]]);
 }
 
-export function getAdminRegisterStMintInstructionDataCodec(): Codec<
-  AdminRegisterStMintInstructionDataArgs,
-  AdminRegisterStMintInstructionData
+export function getRemoveOperatorInstructionDataCodec(): Codec<
+  RemoveOperatorInstructionDataArgs,
+  RemoveOperatorInstructionData
 > {
   return combineCodec(
-    getAdminRegisterStMintInstructionDataEncoder(),
-    getAdminRegisterStMintInstructionDataDecoder()
+    getRemoveOperatorInstructionDataEncoder(),
+    getRemoveOperatorInstructionDataDecoder()
   );
 }
 
-export type AdminRegisterStMintInput<
+export type RemoveOperatorInput<
   TAccountConfig extends string = string,
   TAccountNcn extends string = string,
-  TAccountStMint extends string = string,
-  TAccountVaultRegistry extends string = string,
+  TAccountOperator extends string = string,
   TAccountAdmin extends string = string,
+  TAccountSnapshot extends string = string,
 > = {
   config: Address<TAccountConfig>;
   ncn: Address<TAccountNcn>;
-  stMint: Address<TAccountStMint>;
-  vaultRegistry: Address<TAccountVaultRegistry>;
+  operator: Address<TAccountOperator>;
   admin: TransactionSigner<TAccountAdmin>;
-  weightBps: AdminRegisterStMintInstructionDataArgs['weightBps'];
+  snapshot: Address<TAccountSnapshot>;
 };
 
-export function getAdminRegisterStMintInstruction<
+export function getRemoveOperatorInstruction<
   TAccountConfig extends string,
   TAccountNcn extends string,
-  TAccountStMint extends string,
-  TAccountVaultRegistry extends string,
+  TAccountOperator extends string,
   TAccountAdmin extends string,
+  TAccountSnapshot extends string,
   TProgramAddress extends Address = typeof NCN_PROGRAM_PROGRAM_ADDRESS,
 >(
-  input: AdminRegisterStMintInput<
+  input: RemoveOperatorInput<
     TAccountConfig,
     TAccountNcn,
-    TAccountStMint,
-    TAccountVaultRegistry,
-    TAccountAdmin
+    TAccountOperator,
+    TAccountAdmin,
+    TAccountSnapshot
   >,
   config?: { programAddress?: TProgramAddress }
-): AdminRegisterStMintInstruction<
+): RemoveOperatorInstruction<
   TProgramAddress,
   TAccountConfig,
   TAccountNcn,
-  TAccountStMint,
-  TAccountVaultRegistry,
-  TAccountAdmin
+  TAccountOperator,
+  TAccountAdmin,
+  TAccountSnapshot
 > {
   // Program address.
   const programAddress = config?.programAddress ?? NCN_PROGRAM_PROGRAM_ADDRESS;
@@ -151,44 +136,39 @@ export function getAdminRegisterStMintInstruction<
   const originalAccounts = {
     config: { value: input.config ?? null, isWritable: false },
     ncn: { value: input.ncn ?? null, isWritable: false },
-    stMint: { value: input.stMint ?? null, isWritable: false },
-    vaultRegistry: { value: input.vaultRegistry ?? null, isWritable: true },
-    admin: { value: input.admin ?? null, isWritable: true },
+    operator: { value: input.operator ?? null, isWritable: false },
+    admin: { value: input.admin ?? null, isWritable: false },
+    snapshot: { value: input.snapshot ?? null, isWritable: true },
   };
   const accounts = originalAccounts as Record<
     keyof typeof originalAccounts,
     ResolvedAccount
   >;
 
-  // Original args.
-  const args = { ...input };
-
   const getAccountMeta = getAccountMetaFactory(programAddress, 'programId');
   const instruction = {
     accounts: [
       getAccountMeta(accounts.config),
       getAccountMeta(accounts.ncn),
-      getAccountMeta(accounts.stMint),
-      getAccountMeta(accounts.vaultRegistry),
+      getAccountMeta(accounts.operator),
       getAccountMeta(accounts.admin),
+      getAccountMeta(accounts.snapshot),
     ],
     programAddress,
-    data: getAdminRegisterStMintInstructionDataEncoder().encode(
-      args as AdminRegisterStMintInstructionDataArgs
-    ),
-  } as AdminRegisterStMintInstruction<
+    data: getRemoveOperatorInstructionDataEncoder().encode({}),
+  } as RemoveOperatorInstruction<
     TProgramAddress,
     TAccountConfig,
     TAccountNcn,
-    TAccountStMint,
-    TAccountVaultRegistry,
-    TAccountAdmin
+    TAccountOperator,
+    TAccountAdmin,
+    TAccountSnapshot
   >;
 
   return instruction;
 }
 
-export type ParsedAdminRegisterStMintInstruction<
+export type ParsedRemoveOperatorInstruction<
   TProgram extends string = typeof NCN_PROGRAM_PROGRAM_ADDRESS,
   TAccountMetas extends readonly IAccountMeta[] = readonly IAccountMeta[],
 > = {
@@ -196,21 +176,21 @@ export type ParsedAdminRegisterStMintInstruction<
   accounts: {
     config: TAccountMetas[0];
     ncn: TAccountMetas[1];
-    stMint: TAccountMetas[2];
-    vaultRegistry: TAccountMetas[3];
-    admin: TAccountMetas[4];
+    operator: TAccountMetas[2];
+    admin: TAccountMetas[3];
+    snapshot: TAccountMetas[4];
   };
-  data: AdminRegisterStMintInstructionData;
+  data: RemoveOperatorInstructionData;
 };
 
-export function parseAdminRegisterStMintInstruction<
+export function parseRemoveOperatorInstruction<
   TProgram extends string,
   TAccountMetas extends readonly IAccountMeta[],
 >(
   instruction: IInstruction<TProgram> &
     IInstructionWithAccounts<TAccountMetas> &
     IInstructionWithData<Uint8Array>
-): ParsedAdminRegisterStMintInstruction<TProgram, TAccountMetas> {
+): ParsedRemoveOperatorInstruction<TProgram, TAccountMetas> {
   if (instruction.accounts.length < 5) {
     // TODO: Coded error.
     throw new Error('Not enough accounts');
@@ -226,12 +206,10 @@ export function parseAdminRegisterStMintInstruction<
     accounts: {
       config: getNextAccount(),
       ncn: getNextAccount(),
-      stMint: getNextAccount(),
-      vaultRegistry: getNextAccount(),
+      operator: getNextAccount(),
       admin: getNextAccount(),
+      snapshot: getNextAccount(),
     },
-    data: getAdminRegisterStMintInstructionDataDecoder().decode(
-      instruction.data
-    ),
+    data: getRemoveOperatorInstructionDataDecoder().decode(instruction.data),
   };
 }

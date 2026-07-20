@@ -13,6 +13,7 @@ use ncn_program_core::{
     loaders::load_ncn_epoch,
     snapshot::{OperatorSnapshot, Snapshot},
     stake_weight::StakeWeights,
+    vault_registry::{VaultRegistry, FULL_WEIGHT_BPS},
 };
 use solana_program::{
     account_info::AccountInfo, clock::Clock, entrypoint::ProgramResult, msg,
@@ -35,11 +36,12 @@ use solana_program::{
 /// 8. `[]` ncn_operator_state: The connection between NCN and operator
 /// 9. `[]` vault_operator_delegation: The delegation between vault and operator
 /// 10. `[writable]` snapshot: Snapshot account containing operator snapshots
+/// 11. `[]` vault_registry: Vault registry (weights + per-vault registry slots)
 pub fn process_snapshot_vault_operator_delegation(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
 ) -> ProgramResult {
-    let [ncn_config, restaking_config, ncn, operator, vault, vault_ncn_ticket, ncn_vault_ticket, ncn_operator_state, vault_operator_delegation, snapshot] =
+    let [ncn_config, restaking_config, ncn, operator, vault, vault_ncn_ticket, ncn_vault_ticket, ncn_operator_state, vault_operator_delegation, snapshot, vault_registry] =
         accounts
     else {
         msg!("Error: Not enough account keys provided");
@@ -52,6 +54,7 @@ pub fn process_snapshot_vault_operator_delegation(
     Operator::load(&jito_restaking_program::id(), operator, false)?;
     Vault::load(&jito_vault_program::id(), vault, false)?;
     Snapshot::load(program_id, snapshot, ncn.key, true)?;
+    VaultRegistry::load(program_id, vault_registry, ncn.key, false)?;
 
     NcnVaultTicket::load(
         &jito_restaking_program::id(),
@@ -174,6 +177,18 @@ pub fn process_snapshot_vault_operator_delegation(
 
     let is_active = is_operator_ncn_connection_active && is_vault_ncn_connection_active;
 
+    // Resolve the vault's registry slot (per-vault contribution key) and its
+    // weight: contribution = delegation * weight_bps / 10_000
+    // (docs/INTERFACES.md par.3)
+    let (registry_slot, weight_bps) = {
+        let vault_registry_data = vault_registry.data.borrow();
+        let vault_registry_account = VaultRegistry::try_from_slice_unchecked(&vault_registry_data)?;
+        (
+            vault_registry_account.get_vault_registry_slot(vault.key)? as u64,
+            vault_registry_account.get_vault_weight_bps(vault.key)?,
+        )
+    };
+
     let (total_stake_weight, next_epoch_stake_weight) = if is_active {
         let vault_operator_delegation_data = vault_operator_delegation.data.borrow();
         let vault_operator_delegation_account =
@@ -184,12 +199,22 @@ pub fn process_snapshot_vault_operator_delegation(
         (0u128, 0u128)
     };
 
+    // Scale the raw delegation by the vault's weight
+    let apply_weight = |raw: u128| -> Result<u128, ProgramError> {
+        raw.checked_mul(weight_bps as u128)
+            .and_then(|scaled| scaled.checked_div(FULL_WEIGHT_BPS as u128))
+            .ok_or_else(|| NCNProgramError::ArithmeticOverflow.into())
+    };
+    let total_stake_weight = apply_weight(total_stake_weight)?;
+    let next_epoch_stake_weight = apply_weight(next_epoch_stake_weight)?;
+
     // Increment vault operator delegation and check if finalized
     let this_epoch_stake_weight = StakeWeights::snapshot(total_stake_weight)?;
     let next_epoch_stake_weight = StakeWeights::snapshot(next_epoch_stake_weight)?;
     let _ncn_operator_index = {
         cloned_operator_snapshot.snapshot_vault_operator_delegation(
             current_slot,
+            registry_slot,
             &this_epoch_stake_weight,
             &next_epoch_stake_weight,
             snapshot_account.minimum_stake(),
@@ -202,6 +227,10 @@ pub fn process_snapshot_vault_operator_delegation(
         cloned_operator_snapshot.ncn_operator_index() as usize,
         &cloned_operator_snapshot,
     );
+
+    // The snapshot-level freshness marker tracks the latest crank; the
+    // VerifyCertificate slot-freshness window measures against it.
+    snapshot_account.set_last_snapshot_slot(current_slot);
 
     Ok(())
 }

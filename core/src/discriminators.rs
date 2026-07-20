@@ -9,7 +9,4 @@ pub enum Discriminators {
     WeightTable = 0x10,
     Snapshot = 0x11,
     OperatorSnapshot = 0x12,
-
-    // State Tracking
-    VoteCounter = 0x52,
 }
