@@ -531,7 +531,7 @@
 <footer>
   <div class="inner" style="margin-bottom:22px">
     <div style="width:100%">
-      <h3 class="fh">Programs (Solana Devnet)</h3>
+      <h3 class="fh">Programs (Solana <span id="prog-cluster">Devnet</span>)</h3>
       <div class="kv" id="contracts">loading config…</div>
     </div>
   </div>
@@ -646,25 +646,24 @@ async function getAccount(pk){
   return r && r.value ? r.value : null;
 }
 
-/* ---- state PDA decode (INTERFACES.md §4) ----
-   seeds [b"gk_state", ncn, app_id]; fields:
-   discriminator, ncn: Pubkey, app_id: [u8;32], commitment_root: [u8;32],
-   transition_count: u64, sim_profile_id: [u8;32], env_commitment: [u8;32], bump.
-   Field bytes = 32+32+32+8+32+32+1 = 169. Header (discriminator) width follows
-   the repo's jito_bytemuck convention: byte 0 = 1-byte discriminator, struct at
-   byte 8 (SIZE = 8 + size_of::<Self>()). We infer the header from the account
-   length so a 1-byte- or 0-byte-header build still decodes. */
-const STATE_FIELDS = 169;
+/* ---- state PDA decode (settlement_core/src/state.rs is ground truth) ----
+   seeds [b"gk_state", ncn, app_id]. InitializeState creates the account at
+   exactly GkState::SIZE = 8 + 169 = 177 bytes: jito_bytemuck header (byte 0 =
+   discriminator 0x60 = SettlementDiscriminators::GkState, bytes 1..8 zero),
+   then the #[repr(C)] Pod struct at byte 8 — every field byte-aligned, no
+   padding: ncn: Pubkey(32), app_id: [u8;32], commitment_root: [u8;32],
+   transition_count: PodU64 (8, LE), sim_profile_id: [u8;32],
+   env_commitment: [u8;32], bump: u8. */
+const GK_STATE_DISCRIMINATOR = 0x60;
+const GK_STATE_HEADER = 8;
+const GK_STATE_FIELDS = 169;      // 32+32+32+8+32+32+1
+const GK_STATE_SIZE = GK_STATE_HEADER + GK_STATE_FIELDS;   // 177
 function decodeStatePda(bytes){
-  let hdr = null;
-  const d = bytes.length - STATE_FIELDS;
-  if (d === 8 || d === 1 || d === 0) hdr = d;
-  else if (bytes.length >= STATE_FIELDS + 8) hdr = 8;   // trailing padding
-  else return null;                                     // unrecognized layout
-  let o = hdr;
+  if (bytes.length !== GK_STATE_SIZE) return null;         // real layout only
+  if (bytes[0] !== GK_STATE_DISCRIMINATOR) return null;
+  let o = GK_STATE_HEADER;
   const take = n => { const s = bytes.slice(o, o+n); o += n; return s; };
   return {
-    header: hdr,
     ncn: b58encode(take(32)),
     app_id: hexOf(take(32)),
     commitment_root: hexOf(take(32)),
@@ -731,7 +730,8 @@ async function readChain(){
     }
     const st = decodeStatePda(b64ToBytes(acct.data[0]));
     if (!st) { busy.innerHTML = "state PDA exists but has an unrecognized layout (" +
-      b64ToBytes(acct.data[0]).length + " bytes) — expecting the §4 gk_state account."; return; }
+      b64ToBytes(acct.data[0]).length + " bytes) — expecting the 177-byte gk_state account " +
+      "(discriminator 0x60 at byte 0, struct at byte 8)."; return; }
     chainState = st;
     if (st.transition_count === 0) {
       busy.innerHTML = "state PDA live ✓ — <b>0 transitions settled</b>. No committee " +
@@ -798,6 +798,8 @@ async function fetchSettlements(limit){
       try {
         const buf = await getAccount(sm.meta.buffer);
         if (buf) {
+          // Story bytes start at buffer data offset 0 (the 36-byte trailer sits
+          // at the END of the account); settle verified sha256(data[..len]).
           const bytes = b64ToBytes(buf.data[0]).slice(0, sm.meta.len);
           const hash = hexOf(await sha256(bytes));
           entry.story = { text: new TextDecoder().decode(bytes),
@@ -844,12 +846,24 @@ async function bufferFallback(count){
         <div class="m"><a target="_blank" href="${explAddr(pda)}">buffer PDA ↗</a></div></div>`;
       continue;
     }
-    let bytes = b64ToBytes(acct.data[0]);
-    let end = bytes.length; while (end > 0 && bytes[end-1] === 0) end--;   // trim zero tail
-    const text = new TextDecoder().decode(bytes.slice(0, end));
+    // settlement_core/src/buffer.rs: content occupies data[0 .. len-36]; the
+    // last 36 bytes are the trailer `payer: Pubkey(32) ‖ max_content: u32 LE`
+    // (NOT story bytes — never render them).
+    const bytes = b64ToBytes(acct.data[0]);
+    if (bytes.length < 36) {
+      html += `<div class="story"><b>transition #${i}</b> — buffer PDA
+        <code>${esc(short(pda))}</code> is ${bytes.length} bytes, smaller than the
+        36-byte trailer — not a gk_buffer account.
+        <div class="m"><a target="_blank" href="${explAddr(pda)}">buffer PDA ↗</a></div></div>`;
+      continue;
+    }
+    const content = bytes.slice(0, bytes.length - 36);
+    const maxContent = u32le(bytes, bytes.length - 4);
+    const text = new TextDecoder().decode(content);
     html += `<div class="story"><b>transition #${i}</b><br>${esc(text)}
-      <div class="m">${end} bytes (untrimmed ${bytes.length}) · <span class="no">len UNVERIFIED —
-      settle tx pruned, showing raw buffer bytes</span> ·
+      <div class="m">${content.length}-byte content region (capacity ${maxContent}, trailer stripped) ·
+      <span class="no">len UNVERIFIED — settle tx pruned, so the certified story_meta.len is
+      unknown; showing the whole content region</span> ·
       <a target="_blank" href="${explAddr(pda)}">buffer ↗</a></div></div>`;
   }
   return html || `<div class="note">no buffer accounts found for transitions
@@ -876,8 +890,9 @@ async function loadHistory(){
     }
     const st = decodeStatePda(b64ToBytes(acct.data[0]));
     if (!st) {
-      $("history").innerHTML = "state PDA exists but its layout isn't the §4 gk_state account (" +
-        b64ToBytes(acct.data[0]).length + " bytes) — refusing to guess.";
+      $("history").innerHTML = "state PDA exists but its layout isn't the 177-byte gk_state account (" +
+        b64ToBytes(acct.data[0]).length + " bytes; expecting discriminator 0x60 at byte 0, " +
+        "struct at byte 8) — refusing to guess.";
       return;
     }
     chainState = st;
@@ -959,6 +974,7 @@ function startWatch(){
 
 /* =================== contracts / footer =================== */
 function renderContracts(){
+  $("prog-cluster").textContent = cluster();
   if (!configured) {
     $("contracts").innerHTML =
       `<b>NCN program</b> <span class="addr">— awaiting devnet deploy</span><br>` +
