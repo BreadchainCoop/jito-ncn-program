@@ -244,6 +244,237 @@ pub fn verify_fixture(fixture: &Fixture) -> anyhow::Result<VerifiedFixture> {
     })
 }
 
+// ===========================================================================
+// §8 — Qwen answer settlement (real-model demo; supersedes the story fixture).
+//
+// The committee settles a CHAT ANSWER as token ids the browser BPE-decodes,
+// mirroring the EVM `GasKillerChat.ChatAnswered(promptIds, answerIds)`.
+//   Store { data } = the single-slot commitment root from the Qwen engine run
+//                    (`GasKillerChat.computeChatRoot`), same single-slot rule.
+//   Event { discriminant = sha256("gk:qwen_answer")[..8], payload = QwenAnswer }
+// Small answers (<=24 tok) ride the event inline — no buffer account.
+// ===========================================================================
+
+/// Seed for the Qwen answer event discriminant (§8).
+pub const QWEN_ANSWER_EVENT_SEED: &[u8] = b"gk:qwen_answer";
+
+/// Model tag: real Qwen3-0.6B overlay.
+pub const MODEL_QWEN3_0_6B: u8 = 0;
+/// Model tag: Qwen3.5-35B-A3B overlay.
+pub const MODEL_QWEN3_5_35B: u8 = 1;
+
+/// The §8 `QwenAnswer` event payload (borsh, frozen). Rides a
+/// `StateUpdate::Event` whose discriminant is `sha256("gk:qwen_answer")[..8]`.
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone, PartialEq, Eq)]
+pub struct QwenAnswer {
+    /// 0 = qwen3-0.6b, 1 = qwen3.5-35b.
+    pub model: u8,
+    /// The tokenized prompt (browser-verifiable; chat template applied off-chain).
+    pub prompt_ids: Vec<u32>,
+    /// The greedy-decoded answer token ids from the real engine run.
+    pub answer_ids: Vec<u32>,
+    /// Overlay manifest = keccak(keccak(weights)||keccak(tok)).
+    pub manifest: [u8; 32],
+}
+
+/// The Qwen answer event discriminant: `sha256("gk:qwen_answer")[..8]`.
+pub fn qwen_answer_discriminant() -> [u8; 8] {
+    let h = sha256(QWEN_ANSWER_EVENT_SEED);
+    let mut d = [0u8; 8];
+    d.copy_from_slice(&h[..8]);
+    d
+}
+
+/// Everything the producer needs from the Qwen engine run + the Solana side.
+pub struct QwenInputs<'a> {
+    /// UTF-8 prompt (before the chat template is applied).
+    pub prompt: &'a str,
+    /// Model tag (see `MODEL_QWEN3_*`).
+    pub model: u8,
+    /// The tokenized prompt ids fed to the engine.
+    pub prompt_ids: Vec<u32>,
+    /// The greedy-decoded answer ids the engine returned.
+    pub answer_ids: Vec<u32>,
+    /// The overlay manifest.
+    pub manifest: [u8; 32],
+    /// The single-slot commitment root after this exchange
+    /// (`GasKillerChat.computeChatRoot`).
+    pub new_root: [u8; 32],
+    /// The state PDA's transition_count BEFORE this transition.
+    pub transition_index: u64,
+    /// The consumer app's state PDA.
+    pub state_pda: [u8; 32],
+    /// The settle instruction's 8-byte discriminator.
+    pub ix_discriminator: [u8; 8],
+}
+
+/// Build the §8 payload: `[Store { new_root }, Event { qwen_answer }]`.
+pub fn build_qwen_payload(inputs: &QwenInputs) -> anyhow::Result<SettlementPayload> {
+    let answer = QwenAnswer {
+        model: inputs.model,
+        prompt_ids: inputs.prompt_ids.clone(),
+        answer_ids: inputs.answer_ids.clone(),
+        manifest: inputs.manifest,
+    };
+    Ok(SettlementPayload {
+        transition_index: inputs.transition_index,
+        state_pda: inputs.state_pda,
+        ix_discriminator: inputs.ix_discriminator,
+        updates: vec![
+            StateUpdate::Store {
+                data: inputs.new_root,
+            },
+            StateUpdate::Event {
+                discriminant: qwen_answer_discriminant(),
+                payload: answer.try_to_vec()?,
+            },
+        ],
+    })
+}
+
+/// Provenance of a Qwen run. Field names frozen per §8/Track Q1 (`cmd`,
+/// `sdk_commit`).
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct QwenFixtureSource {
+    /// The exact inference command that produced the answer ids.
+    pub cmd: String,
+    /// The gas-killer/solidity-sdk commit the inference ran at.
+    pub sdk_commit: String,
+}
+
+/// The §8 Qwen JSON fixture. Field names are frozen (Track Q3 decodes it).
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct QwenFixture {
+    /// UTF-8 prompt (before the chat template).
+    pub prompt: String,
+    /// The tokenized prompt ids.
+    pub prompt_ids: Vec<u32>,
+    /// The real engine answer ids.
+    pub answer_ids: Vec<u32>,
+    /// The engine's detokenized answer text (for humans; the browser re-derives
+    /// it from `answer_ids`).
+    pub answer_text: String,
+    /// hex of the single-slot commitment root (the `Store` value).
+    pub commitment_root: String,
+    /// hex of the overlay manifest.
+    pub manifest: String,
+    /// base64 of `borsh(SettlementPayload)`.
+    pub payload_borsh_base64: String,
+    /// hex of `sha256(borsh(SettlementPayload))` (the MessageDigest).
+    pub digest_hex: String,
+    /// Provenance of the run.
+    pub source: QwenFixtureSource,
+}
+
+/// Build the full Qwen fixture from real engine values.
+pub fn make_qwen_fixture(
+    inputs: &QwenInputs,
+    answer_text: &str,
+    source: QwenFixtureSource,
+) -> anyhow::Result<QwenFixture> {
+    use base64::Engine as _;
+    let payload = build_qwen_payload(inputs)?;
+    let payload_bytes = payload.try_to_vec()?;
+    Ok(QwenFixture {
+        prompt: inputs.prompt.to_string(),
+        prompt_ids: inputs.prompt_ids.clone(),
+        answer_ids: inputs.answer_ids.clone(),
+        answer_text: answer_text.to_string(),
+        commitment_root: hex::encode(inputs.new_root),
+        manifest: hex::encode(inputs.manifest),
+        payload_borsh_base64: base64::engine::general_purpose::STANDARD.encode(&payload_bytes),
+        digest_hex: hex::encode(sha256(&payload_bytes)),
+        source,
+    })
+}
+
+/// A Qwen fixture re-verified end to end.
+pub struct VerifiedQwenFixture {
+    /// The decoded settlement payload.
+    pub payload: SettlementPayload,
+    /// The recomputed message digest.
+    pub digest: [u8; 32],
+    /// The single Store's data (the commitment root).
+    pub new_root: [u8; 32],
+    /// The decoded qwen_answer event payload.
+    pub answer: QwenAnswer,
+}
+
+/// Re-verify a Qwen fixture: base64/borsh round-trip (canonical), digest
+/// recomputation, exactly one `Store` equal to `commitment_root`, and a
+/// `qwen_answer` event whose ids/manifest match the top-level fields.
+pub fn verify_qwen_fixture(fixture: &QwenFixture) -> anyhow::Result<VerifiedQwenFixture> {
+    use base64::Engine as _;
+    let payload_bytes =
+        base64::engine::general_purpose::STANDARD.decode(&fixture.payload_borsh_base64)?;
+    let payload = SettlementPayload::try_from_slice(&payload_bytes)?;
+
+    // borsh round-trip must be canonical (the digest covers the raw bytes).
+    anyhow::ensure!(
+        payload.try_to_vec()? == payload_bytes,
+        "borsh round-trip mismatch"
+    );
+
+    let digest = sha256(&payload_bytes);
+    anyhow::ensure!(hex::encode(digest) == fixture.digest_hex, "digest mismatch");
+
+    // Exactly one Store, equal to the fixture's commitment_root.
+    let stores: Vec<&StateUpdate> = payload
+        .updates
+        .iter()
+        .filter(|u| matches!(u, StateUpdate::Store { .. }))
+        .collect();
+    anyhow::ensure!(
+        stores.len() == 1,
+        "expected exactly one Store, got {}",
+        stores.len()
+    );
+    let StateUpdate::Store { data: new_root } = stores[0] else {
+        unreachable!()
+    };
+    anyhow::ensure!(
+        hex::encode(new_root) == fixture.commitment_root,
+        "Store data != fixture commitment_root"
+    );
+
+    // The qwen_answer event: present, ids + manifest match the top-level fields.
+    let mut answer = None;
+    for update in &payload.updates {
+        if let StateUpdate::Event {
+            discriminant,
+            payload: event_payload,
+        } = update
+        {
+            anyhow::ensure!(
+                *discriminant == qwen_answer_discriminant(),
+                "unknown event discriminant"
+            );
+            let decoded = QwenAnswer::try_from_slice(event_payload)?;
+            anyhow::ensure!(
+                decoded.prompt_ids == fixture.prompt_ids,
+                "qwen_answer prompt_ids mismatch"
+            );
+            anyhow::ensure!(
+                decoded.answer_ids == fixture.answer_ids,
+                "qwen_answer answer_ids mismatch"
+            );
+            anyhow::ensure!(
+                hex::encode(decoded.manifest) == fixture.manifest,
+                "qwen_answer manifest mismatch"
+            );
+            answer = Some(decoded);
+        }
+    }
+    let answer = answer.ok_or_else(|| anyhow::anyhow!("missing qwen_answer event"))?;
+
+    Ok(VerifiedQwenFixture {
+        new_root: *new_root,
+        payload,
+        digest,
+        answer,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -364,5 +595,111 @@ mod tests {
         assert_eq!(verified.payload.transition_index, 3);
         assert_eq!(verified.story_meta.len, 12);
         assert_eq!(hex::encode(verified.digest), fixture.digest_hex);
+    }
+}
+
+#[cfg(test)]
+mod qwen_tests {
+    use super::*;
+
+    fn sample_inputs() -> QwenInputs<'static> {
+        QwenInputs {
+            prompt: "What is the capital of France?",
+            model: MODEL_QWEN3_0_6B,
+            prompt_ids: vec![151644, 872, 198],
+            answer_ids: vec![785, 6722],
+            manifest: [0xAB; 32],
+            new_root: [0xCD; 32],
+            transition_index: 0,
+            state_pda: [0x55; 32],
+            ix_discriminator: [1, 2, 3, 4, 5, 6, 7, 8],
+        }
+    }
+
+    /// `sha256("gk:qwen_answer")[..8]` — the §8 discriminant.
+    #[test]
+    fn qwen_answer_discriminant_matches_spec() {
+        // Independent recomputation of sha256("gk:qwen_answer")[..8].
+        let full = sha256(b"gk:qwen_answer");
+        assert_eq!(&qwen_answer_discriminant(), &full[..8]);
+    }
+
+    /// Pins the QwenAnswer borsh wire format byte for byte (u8 tag, u32-LE Vec
+    /// length prefix + u32-LE items, [u8;32] raw). The browser and any
+    /// re-implementation MUST match these bytes.
+    #[test]
+    fn qwen_answer_golden_borsh() {
+        let answer = QwenAnswer {
+            model: 0,
+            prompt_ids: vec![1, 258],
+            answer_ids: vec![785],
+            manifest: [0x11; 32],
+        };
+        let expected = hex::decode(
+            "00\
+             020000000100000002010000\
+             0100000011030000\
+             1111111111111111111111111111111111111111111111111111111111111111",
+        )
+        .unwrap();
+        assert_eq!(
+            answer.try_to_vec().unwrap(),
+            expected,
+            "QwenAnswer wire drifted"
+        );
+        assert_eq!(QwenAnswer::try_from_slice(&expected).unwrap(), answer);
+    }
+
+    /// The payload is `[Store, Event{qwen_answer}]` — one Store, no story_meta.
+    #[test]
+    fn build_qwen_payload_shape() {
+        let inputs = sample_inputs();
+        let payload = build_qwen_payload(&inputs).unwrap();
+        assert_eq!(payload.updates.len(), 2);
+        assert_eq!(payload.updates[0], StateUpdate::Store { data: [0xCD; 32] });
+        let StateUpdate::Event {
+            discriminant,
+            payload: event_payload,
+        } = &payload.updates[1]
+        else {
+            panic!("expected Event");
+        };
+        assert_eq!(*discriminant, qwen_answer_discriminant());
+        let decoded = QwenAnswer::try_from_slice(event_payload).unwrap();
+        assert_eq!(decoded.prompt_ids, inputs.prompt_ids);
+        assert_eq!(decoded.answer_ids, inputs.answer_ids);
+        assert_eq!(decoded.manifest, inputs.manifest);
+        assert_eq!(decoded.model, MODEL_QWEN3_0_6B);
+    }
+
+    /// make -> verify round-trip: digest, canonical borsh, one Store == root,
+    /// qwen_answer ids/manifest consistency.
+    #[test]
+    fn qwen_fixture_round_trip() {
+        let inputs = sample_inputs();
+        let source = QwenFixtureSource {
+            cmd: "sharded_infer.py --real ...".to_string(),
+            sdk_commit: "deadbeef".to_string(),
+        };
+        let fixture = make_qwen_fixture(&inputs, "The capital", source).unwrap();
+        let verified = verify_qwen_fixture(&fixture).unwrap();
+        assert_eq!(verified.new_root, [0xCD; 32]);
+        assert_eq!(verified.answer.answer_ids, inputs.answer_ids);
+        assert_eq!(hex::encode(verified.digest), fixture.digest_hex);
+        assert_eq!(verified.payload.transition_index, 0);
+        assert_eq!(fixture.answer_text, "The capital");
+    }
+
+    /// A tampered answer id must break re-verification (digest is recomputed).
+    #[test]
+    fn qwen_fixture_detects_tamper() {
+        let inputs = sample_inputs();
+        let source = QwenFixtureSource {
+            cmd: "x".to_string(),
+            sdk_commit: "y".to_string(),
+        };
+        let mut fixture = make_qwen_fixture(&inputs, "hi", source).unwrap();
+        fixture.answer_ids[0] ^= 1; // top-level ids now disagree with the event
+        assert!(verify_qwen_fixture(&fixture).is_err());
     }
 }
