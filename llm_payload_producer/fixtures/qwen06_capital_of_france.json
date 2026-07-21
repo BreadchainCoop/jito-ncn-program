@@ -1,0 +1,43 @@
+{
+  "prompt": "What is the capital of France?",
+  "prompt_ids": [
+    151644,
+    872,
+    198,
+    3838,
+    374,
+    279,
+    6722,
+    315,
+    9625,
+    30,
+    151645,
+    198,
+    151644,
+    77091,
+    198,
+    151667,
+    271,
+    151668,
+    271
+  ],
+  "answer_ids": [
+    785,
+    6722,
+    315,
+    9625,
+    374,
+    3070,
+    59604,
+    334
+  ],
+  "answer_text": "The capital of France is **Paris**",
+  "commitment_root": "cffe78a8f0c333b2abe759584ae397bbbc168eb57aea0aacfaca447a57be46bc",
+  "manifest": "23216cb9ed9ef2b4bc20c84d27b68fa62ab194fc0845dfa707836f48ec4a7ae9",
+  "payload_borsh_base64": "AAAAAAAAAAD4cFN3Vmu3XggLGET/7pB2PSn2FEQHApOmLmPkGmGdvDX44h8+4U6uAgAAAADP/nio8MMzsqvnWVhK45e7vBaOtXrqCqz6ykR6V75GvAEtgJVb12VmhJUAAAAAEwAAAFxQAgBoAwAAxgAAAP4OAAB2AQAAFwEAAEIaAAA7AQAAmSUAAB4AAABdUAIAxgAAAFxQAgAjLQEAxgAAAHNQAgAPAQAAdFACAA8BAAAIAAAAEQMAAEIaAAA7AQAAmSUAAHYBAAD+CwAA1OgAAE4BAAAjIWy57Z7ytLwgyE0nto+mKrGU/AhF36cHg29I7Ep66Q==",
+  "digest_hex": "788656159600a9a09ba10de407bf87ddef0ee33b009fadac0d10a838ad5d58da",
+  "source": {
+    "cmd": ".context/qwen3/venv/bin/python src/examples/onchain-llm/tools/sharded_infer.py --mode sharded --real --stages 4 --committee 2 --argmax-shards 4 --max-new 8 --prompt-ids 151644,872,198,3838,374,279,6722,315,9625,30,151645,198,151644,77091,198,151667,271,151668,271 (monolithic Qwen3Engine.chat baseline: 8 tokens, 740884020041 gas, monterrey-v3 d44f65d)",
+    "sdk_commit": "d44f65d6267cf68edc86c64cff446d1d4fe48d06"
+  }
+}
