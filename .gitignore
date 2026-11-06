@@ -30,7 +30,3 @@ integration_tests/tests/fixtures/tda-accounts/
 integration_tests/tests/fixtures/ncn_program.so
 
 integration_tests/tests/fixtures/ncn_program-keypair.json
-branch_structure.json
-temp_auto_push.bat
-temp_interactive_push.bat
-.gitignore
